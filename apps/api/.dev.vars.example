@@ -1,0 +1,2 @@
+# Copy to .dev.vars (gitignored). Comma-separated list of emails allowed to use the app.
+ALLOWED_EMAILS=dev@kharcha.local

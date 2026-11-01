@@ -1,0 +1,71 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production # never two production deploys at once
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    if: vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production # configure required reviewers in repo Settings → Environments
+      url: https://kharcha.kunalnevrekar.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @kharcha/web build
+
+      # Migrations run BEFORE the new code deploys, so they must be backward-compatible with the
+      # currently deployed Worker (expand/contract; see docs/DATA_MODEL.md §7).
+      - name: Apply D1 migrations (production)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/api
+          packageManager: pnpm
+          command: d1 migrations apply DB --remote --env production
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/api
+          packageManager: pnpm
+          command: deploy --env production --var APP_VERSION:${{ github.sha }}
+
+      - name: Smoke test /api/health (via Access service token)
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            body=$(curl -fsS --max-time 10 \
+              -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+              -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
+              https://kharcha.kunalnevrekar.workers.dev/api/health) && \
+            echo "$body" | grep -q '"status":"ok"' && \
+            echo "$body" | grep -q "\"version\":\"${GITHUB_SHA}\"" && { echo "healthy: $body"; exit 0; }
+            echo "attempt $i failed, retrying..."; sleep 10
+          done
+          echo "::error::Smoke test failed"; exit 1

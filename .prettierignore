@@ -1,0 +1,6 @@
+pnpm-lock.yaml
+migrations/meta/
+dist/
+coverage/
+.wrangler/
+apps/api/worker-configuration.d.ts

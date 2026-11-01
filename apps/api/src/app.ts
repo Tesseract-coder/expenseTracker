@@ -1,0 +1,45 @@
+import { Hono } from 'hono';
+import { secureHeaders } from 'hono/secure-headers';
+import type { AppEnv } from './env';
+import { notFound } from './lib/errors';
+import { accessAuth, type JwksProvider } from './middleware/accessAuth';
+import { errorHandler } from './middleware/errorHandler';
+import { requestLogger } from './middleware/requestLogger';
+import { categoryRoutes } from './routes/categories';
+import { healthRoutes } from './routes/health';
+import { meRoutes } from './routes/me';
+
+export interface AppDeps {
+  jwksProvider?: JwksProvider;
+}
+
+export function createApp(deps: AppDeps = {}) {
+  const api = new Hono<AppEnv>()
+    .use(requestLogger)
+    .use(
+      secureHeaders({
+        // API responses are JSON only; static assets get their headers from apps/web/public/_headers.
+        contentSecurityPolicy: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
+        strictTransportSecurity: 'max-age=63072000; includeSubDomains',
+        referrerPolicy: 'no-referrer',
+        crossOriginResourcePolicy: 'same-origin',
+      }),
+    )
+    .use(async (c, next) => {
+      await next();
+      c.header('cache-control', 'no-store');
+    })
+    .use(accessAuth(deps.jwksProvider))
+    .route('/health', healthRoutes)
+    .route('/me', meRoutes)
+    .route('/categories', categoryRoutes);
+
+  api.onError(errorHandler);
+
+  const app = new Hono<AppEnv>().route('/api', api);
+  app.notFound((c) => errorHandler(notFound('No such route'), c));
+  app.onError(errorHandler);
+  return app;
+}
+
+export type ApiRoutes = ReturnType<typeof createApp>;

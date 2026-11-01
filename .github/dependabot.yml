@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 10
+    groups:
+      cloudflare:
+        patterns: ['wrangler', '@cloudflare/*']
+      react:
+        patterns: ['react', 'react-dom', '@types/react*', 'react-router']
+      lint:
+        patterns: ['eslint*', '@eslint/*', 'typescript-eslint', 'prettier']
+      test:
+        patterns: ['vitest', '@vitest/*', '@playwright/test', '@testing-library/*']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

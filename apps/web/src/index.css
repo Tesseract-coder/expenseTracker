@@ -1,0 +1,89 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* shadcn/ui-style design tokens */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-income: var(--income);
+  --color-expense: var(--expense);
+  --radius-lg: 0.75rem;
+  --radius-md: 0.5rem;
+}
+
+:root {
+  --background: oklch(0.985 0.002 247);
+  --foreground: oklch(0.21 0.03 265);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.03 265);
+  --muted: oklch(0.96 0.005 247);
+  --muted-foreground: oklch(0.45 0.03 257);
+  --primary: oklch(0.51 0.09 186);
+  --primary-foreground: oklch(0.99 0 0);
+  --accent: oklch(0.95 0.02 186);
+  --accent-foreground: oklch(0.3 0.06 186);
+  --border: oklch(0.91 0.01 255);
+  --ring: oklch(0.51 0.09 186);
+  --income: oklch(0.52 0.14 150);
+  --expense: oklch(0.55 0.19 27);
+}
+
+.dark {
+  --background: oklch(0.16 0.02 265);
+  --foreground: oklch(0.96 0.005 247);
+  --card: oklch(0.21 0.025 265);
+  --card-foreground: oklch(0.96 0.005 247);
+  --muted: oklch(0.27 0.025 265);
+  --muted-foreground: oklch(0.72 0.02 257);
+  --primary: oklch(0.7 0.11 182);
+  --primary-foreground: oklch(0.16 0.02 265);
+  --accent: oklch(0.3 0.04 186);
+  --accent-foreground: oklch(0.92 0.03 186);
+  --border: oklch(0.32 0.025 265);
+  --ring: oklch(0.7 0.11 182);
+  --income: oklch(0.75 0.15 150);
+  --expense: oklch(0.72 0.16 27);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Privacy mode: blur every amount rendered through <Money>. */
+.privacy-blur [data-money] {
+  filter: blur(6px);
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,81 @@
+name: Deploy preview
+
+# Uploads a new *version* of the separate `kharcha-preview` Worker (own D1/R2) and comments the
+# per-PR preview URL. Never touches production bindings. See docs/DEPLOYMENT.md.
+on:
+  pull_request:
+
+concurrency:
+  group: deploy-preview # one preview deploy at a time: all PRs share the preview D1
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  deploy:
+    # Secrets are unavailable to fork/Dependabot PRs; deploys are opt-in via repo variable.
+    if: >-
+      vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' &&
+      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: preview
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @kharcha/web build
+
+      - name: Apply D1 migrations (preview)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/api
+          packageManager: pnpm
+          command: d1 migrations apply DB --remote --env preview
+
+      - name: Upload preview version
+        id: upload
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/api
+          packageManager: pnpm
+          command: >-
+            versions upload --env preview
+            --preview-alias pr-${{ github.event.pull_request.number }}
+            --message "PR #${{ github.event.pull_request.number }} ${{ github.event.pull_request.head.sha }}"
+
+      - name: Extract preview URL
+        id: url
+        env:
+          OUTPUT: ${{ steps.upload.outputs.command-output }}
+        run: |
+          alias_url=$(printf '%s' "$OUTPUT" | grep -oE 'https://pr-[0-9]+-kharcha-preview\.[a-z0-9.-]+\.workers\.dev' | head -1)
+          version_url=$(printf '%s' "$OUTPUT" | grep -oE 'https://[a-z0-9-]+-kharcha-preview\.[a-z0-9.-]+\.workers\.dev' | head -1)
+          echo "url=${alias_url:-$version_url}" >> "$GITHUB_OUTPUT"
+
+      - name: Comment preview URL
+        if: steps.url.outputs.url != ''
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.url.outputs.url }}
+        with:
+          script: |
+            const marker = '<!-- kharcha-preview -->';
+            const body = `${marker}\n🚀 Preview: ${process.env.PREVIEW_URL}\n\nCommit \`${context.payload.pull_request.head.sha.slice(0, 7)}\` · protected by Cloudflare Access · shared preview D1`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.body?.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });

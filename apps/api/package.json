@@ -1,0 +1,35 @@
+{
+  "name": "@kharcha/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "build": "wrangler deploy --dry-run --outdir dist --env production",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "cf-typegen": "wrangler types --include-runtime false",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:preview": "wrangler d1 migrations apply DB --remote --env preview",
+    "db:migrate:production": "wrangler d1 migrations apply DB --remote --env production"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.7.0",
+    "@kharcha/shared": "workspace:*",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.16",
+    "jose": "^6.2.14",
+    "ulid": "^3.0.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.11",
+    "@cloudflare/workers-types": "^5.20261101.1",
+    "@vitest/coverage-istanbul": "^5.0.5",
+    "drizzle-kit": "^0.31.11",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.156.0"
+  }
+}
