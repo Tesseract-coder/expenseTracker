@@ -55,5 +55,12 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ['**/test/**/*.ts', '**/*.test.{ts,tsx}', 'e2e/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+    },
+  },
   prettier,
 );

@@ -1,10 +1,10 @@
-import { Plus } from 'lucide-react';
-import { EmptyState } from '@/components/EmptyState';
+import { useEffect } from 'react';
+import { Navigate } from 'react-router';
+import { useTransactionSheet } from '@/features/transactions/TransactionSheet';
 
+/** Deep link (e.g. PWA shortcut): open the add sheet over the transaction list. */
 export function AddPage() {
-  return (
-    <EmptyState icon={Plus} title="Quick add">
-      The one-hand add-transaction sheet arrives in Phase 1.
-    </EmptyState>
-  );
+  const { openAdd } = useTransactionSheet();
+  useEffect(() => openAdd(), [openAdd]);
+  return <Navigate to="/transactions" replace />;
 }

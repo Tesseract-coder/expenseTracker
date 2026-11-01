@@ -1,3 +1,5 @@
+import { ChevronRight, Shapes, Wallet } from 'lucide-react';
+import { Link } from 'react-router';
 import { useCategories, useHealth, useMe } from '@/app/queries';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,6 +20,22 @@ export function MorePage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <Card>
+        <ul className="divide-y divide-border">
+          {[
+            { to: '/more/accounts', label: 'Accounts', icon: Wallet },
+            { to: '/more/categories', label: 'Categories', icon: Shapes },
+          ].map(({ to, label, icon: Icon }) => (
+            <li key={to}>
+              <Link to={to} className="flex min-h-14 items-center gap-3 px-4 text-sm font-medium">
+                <Icon aria-hidden className="size-5 text-muted-foreground" />
+                <span className="flex-1">{label}</span>
+                <ChevronRight aria-hidden className="size-5 text-muted-foreground" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle id="theme-label">Theme</CardTitle>
@@ -75,7 +93,7 @@ export function MorePage() {
           )}
           {me.data && <p className="text-muted-foreground">Signed in as {me.data.email}</p>}
           {categories.data && (
-            <p className="text-muted-foreground">{categories.data.categories.length} categories</p>
+            <p className="text-muted-foreground">{categories.data.length} categories</p>
           )}
         </CardContent>
       </Card>

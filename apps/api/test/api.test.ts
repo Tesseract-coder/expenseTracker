@@ -63,7 +63,7 @@ describe('first-login seeding', () => {
     await get('/api/me');
     const user = await env.DB.prepare('select id from users').first<{ id: string }>();
     const acct = env.DB.prepare(
-      "insert into accounts (id, user_id, name, type, opening_balance_date, created_at, updated_at) values ('a1', ?, 'Cash', 'cash', '2026-01-01', 0, 0)",
+      "insert into accounts (id, user_id, name, type, opening_balance_date, created_at, updated_at) values ('a1', ?, 'Test', 'savings', '2026-01-01', 0, 0)",
     ).bind(user?.id);
     await acct.run();
     const bad = env.DB.prepare(

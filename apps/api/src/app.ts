@@ -5,9 +5,16 @@ import { notFound } from './lib/errors';
 import { accessAuth, type JwksProvider } from './middleware/accessAuth';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
+import { accountRoutes } from './routes/accounts';
 import { categoryRoutes } from './routes/categories';
 import { healthRoutes } from './routes/health';
 import { meRoutes } from './routes/me';
+import {
+  counterpartyRoutes,
+  tagRoutes,
+  transactionRoutes,
+  undoRoutes,
+} from './routes/transactions';
 
 export interface AppDeps {
   jwksProvider?: JwksProvider;
@@ -32,7 +39,12 @@ export function createApp(deps: AppDeps = {}) {
     .use(accessAuth(deps.jwksProvider))
     .route('/health', healthRoutes)
     .route('/me', meRoutes)
-    .route('/categories', categoryRoutes);
+    .route('/accounts', accountRoutes)
+    .route('/categories', categoryRoutes)
+    .route('/transactions', transactionRoutes)
+    .route('/tags', tagRoutes)
+    .route('/counterparties', counterpartyRoutes)
+    .route('/undo', undoRoutes);
 
   api.onError(errorHandler);
 

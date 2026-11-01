@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { apiErrorSchema, categoryDtoSchema, healthResponseSchema, meResponseSchema } from './api';
+import { apiErrorSchema, healthResponseSchema, meResponseSchema } from './api';
+import { categoryDtoSchema } from './categories';
 import { directionSchema } from './enums';
 
 describe('api schemas', () => {

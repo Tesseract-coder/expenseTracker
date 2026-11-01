@@ -36,11 +36,13 @@ Single-user personal finance PWA on Cloudflare (Workers + Static Assets, D1, R2)
 - **D1**: no interactive transactions. Use `db.batch([...])` for atomic multi-statement writes; keep ≤100 bound params per statement (chunk bulk inserts).
 - **Drizzle-kit quirks**: expression indexes (`ifnull(...)`) go in hand-written `--custom` migrations; partial-index `WHERE` uses `sql.raw` with unqualified column names. CI fails on schema drift.
 - **Migrations**: forward-only and backward-compatible with the previously deployed Worker (expand/contract).
+- **ID lists in SQL**: use `inJson(column, ids)` from `db/batch.ts` (one JSON param) instead of `inArray` to avoid D1's 100-param limit. Inside `db.batch`, use query builders only (`db.run(sql)` is not batchable on D1).
+- **Undo**: destructive or bulk operations write `audit_log` rows sharing a `batch_id`; `POST /api/undo/:batchId` replays them (`services/transactions.ts#undoBatch`).
 - **Category identity**: seeded categories are referenced by `slug` (stable), never by ID or name.
 - **Auth**: every `/api/*` request goes through `accessAuth` (Access JWT: JWKS signature, iss, aud, exp + `ALLOWED_EMAILS`). Dev bypass only when `AUTH_MODE=dev` + localhost + non-production. Errors: `{ error: { code, message, requestId } }` via `ApiException`.
 - **Security headers**: API via `secureHeaders` middleware; static assets via `apps/web/public/_headers`.
-- **UI**: mobile-first (360×800, 390×844), tap targets ≥44px (`min-h-11`), amounts through `<Money>` so privacy blur works, empty/loading states for every view.
-- **Tests**: shared = table-driven Vitest, ≥90% coverage. API = `@cloudflare/vitest-plugin` against real local D1 with migrations applied (`test/setup.ts`). Web = Vitest + Testing Library. E2E = Playwright on mobile viewports against `wrangler dev`.
+- **UI**: mobile-first (360×800, 390×844), tap targets ≥44px (`min-h-11`), amounts through `<Money>` so privacy blur works, empty/loading states for every view. Every `flex-1` row that holds user text needs `min-w-0` + `truncate` (overflow makes phones zoom out). Sheets (`components/ui/sheet.tsx`, vaul) keep primary actions in a sticky bottom bar. List filters live in URL search params.
+- **Tests**: shared = table-driven Vitest, ≥90% coverage. API = `@cloudflare/vitest-plugin` against real local D1 with migrations applied; `test/setup.ts` wipes all tables before each test (storage is shared within a file). Use `test/helpers.ts` (`postJson`, `categoryIdBySlug`, …). E2E tests share one dev user, so give created data unique names via `uid(testInfo)`. Web = Vitest + Testing Library. E2E = Playwright on mobile viewports against `wrangler dev`.
 - Commits: Conventional Commits (`feat(api): …`, `fix(web): …`, `chore: …`).
 
 ## Pinned toolchain notes

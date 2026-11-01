@@ -1,28 +1,38 @@
 import { Hono } from 'hono';
-import { asc, eq } from 'drizzle-orm';
-import type { CategoryListResponse } from '@kharcha/shared';
+import { categoryCreateSchema, categoryMergeSchema, categoryUpdateSchema } from '@kharcha/shared';
 import type { AppEnv } from '../env';
 import { getDb } from '../db/client';
-import { categories } from '../db/schema';
+import { zv } from '../lib/validate';
+import {
+  createCategory,
+  listCategories,
+  mergeCategory,
+  updateCategory,
+} from '../services/categories';
 
-export const categoryRoutes = new Hono<AppEnv>().get('/', async (c) => {
-  const rows = await getDb(c.env.DB)
-    .select()
-    .from(categories)
-    .where(eq(categories.userId, c.get('user').id))
-    .orderBy(asc(categories.sortOrder), asc(categories.name));
-  return c.json<CategoryListResponse>({
-    categories: rows.map((r) => ({
-      id: r.id,
-      slug: r.slug,
-      parentId: r.parentId,
-      name: r.name,
-      type: r.type,
-      systemKey: r.systemKey,
-      icon: r.icon,
-      color: r.color,
-      archived: r.archived === 1,
-      sortOrder: r.sortOrder,
-    })),
+export const categoryRoutes = new Hono<AppEnv>()
+  .get('/', async (c) =>
+    c.json({ categories: await listCategories(getDb(c.env.DB), c.get('user').id) }),
+  )
+  .post('/', zv('json', categoryCreateSchema), async (c) => {
+    const category = await createCategory(getDb(c.env.DB), c.get('user').id, c.req.valid('json'));
+    return c.json({ category }, 201);
+  })
+  .patch('/:id', zv('json', categoryUpdateSchema), async (c) => {
+    const category = await updateCategory(
+      getDb(c.env.DB),
+      c.get('user').id,
+      c.req.param('id'),
+      c.req.valid('json'),
+    );
+    return c.json({ category });
+  })
+  .post('/:id/merge', zv('json', categoryMergeSchema), async (c) => {
+    const result = await mergeCategory(
+      getDb(c.env.DB),
+      c.get('user').id,
+      c.req.param('id'),
+      c.req.valid('json').targetId,
+    );
+    return c.json(result);
   });
-});

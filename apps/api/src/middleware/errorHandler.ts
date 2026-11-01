@@ -3,10 +3,17 @@ import { HTTPException } from 'hono/http-exception';
 import type { ApiError } from '@kharcha/shared';
 import type { AppEnv } from '../env';
 import { ApiException } from '../lib/errors';
+import { ValidationException } from '../lib/validate';
 import { log } from '../lib/logger';
 
 export const errorHandler: ErrorHandler<AppEnv> = (err, c) => {
   const requestId = c.get('requestId');
+  if (err instanceof ValidationException) {
+    return c.json<ApiError>(
+      { error: { code: err.code, message: err.message, requestId, issues: err.issues } },
+      400,
+    );
+  }
   if (err instanceof ApiException) {
     return c.json<ApiError>(
       { error: { code: err.code, message: err.message, requestId } },

@@ -50,3 +50,43 @@ export function devEnv(overrides: Partial<Env> = {}): Env {
 export function appWith(jwks: Awaited<ReturnType<typeof makeKeys>>['jwks']) {
   return createApp({ jwksProvider: () => jwks });
 }
+
+// ---------------------------------------------------------------------------- JSON client (dev auth)
+
+const devApp = createApp();
+
+export interface CallResult {
+  status: number;
+  body: any;
+}
+
+export async function call(method: string, path: string, body?: unknown): Promise<CallResult> {
+  const res = await devApp.request(
+    `http://localhost${path}`,
+    {
+      method,
+      headers: body === undefined ? {} : { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    },
+    devEnv(),
+  );
+  return { status: res.status, body: res.status === 204 ? null : await res.json() };
+}
+
+export const getJson = (path: string) => call('GET', path);
+export const postJson = (path: string, body: unknown) => call('POST', path, body);
+export const patchJson = (path: string, body: unknown) => call('PATCH', path, body);
+export const del = (path: string) => call('DELETE', path);
+
+/** Category id by seed slug for the dev user. */
+export async function categoryIdBySlug(): Promise<Record<string, string>> {
+  const { body } = await getJson('/api/categories');
+  return Object.fromEntries(
+    body.categories.filter((c: any) => c.slug).map((c: any) => [c.slug, c.id]),
+  );
+}
+
+export async function cashAccountId(): Promise<string> {
+  const { body } = await getJson('/api/accounts');
+  return body.accounts.find((a: any) => a.type === 'cash').id;
+}

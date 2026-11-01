@@ -144,7 +144,7 @@ Unique: `(user_id, key)`.
 - `(user_id, status) WHERE status='needs_review'` and `(user_id, categorized_by) WHERE categorized_by='none'`: inbox (partial indexes)
 - `(user_id, transfer_group_id) WHERE transfer_group_id IS NOT NULL`
 
-**Search** (added in Phase 1): an FTS5 virtual table `transactions_fts(raw_narration, note, counterparty_name)` with `content='transactions'` (D1 supports FTS5), kept in sync by triggers. Amount search is an exact match on the paise conversion.
+**Search**: Phase 1 uses escaped `LIKE` over narration, note and counterparty name (see ARCHITECTURE §9.12). Possible later upgrade: an FTS5 virtual table `transactions_fts(raw_narration, note, counterparty_name)` with `content='transactions'` (D1 supports FTS5), kept in sync by triggers. Amount search is an exact match on the paise conversion.
 
 ### transaction_splits
 
@@ -315,3 +315,4 @@ fingerprint = sha256_hex(
 
 - 2026-11-01: ATM = transfer to Cash; refunds = negative spend; Workers Free plan; React 19.
 - 2026-11-01 (Phase 0): added `categories.slug`; FTS5 and `v_ledger` deferred to the phases that use them.
+- 2026-11-01 (Phase 1): every user gets a seeded **Cash** account on first login. Manual transactions have `channel = NULL`, `source = 'manual'`, `categorized_by = 'manual'` (or `'none'` → Uncategorized). Balances count only transactions dated on/after `opening_balance_date`. Category merge drops source budgets that collide with a target budget for the same month. Recategorizations write `audit_log` rows (`recategorize`); deletes write full snapshots (`delete_txn`) for undo.

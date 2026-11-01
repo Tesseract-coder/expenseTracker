@@ -1,8 +1,8 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
-import { CATEGORY_SEED_VERSION, flattenCategorySeed } from '@kharcha/shared';
+import { CATEGORY_SEED_VERSION, flattenCategorySeed, toIstDate } from '@kharcha/shared';
 import type { Db } from '../db/client';
-import { categories, settings } from '../db/schema';
+import { accounts, categories, settings } from '../db/schema';
 import { newId } from '../lib/ids';
 
 export const DEFAULT_SETTINGS: Record<string, unknown> = {
@@ -57,6 +57,22 @@ export async function seedUserDefaults(db: Db, userId: string): Promise<void> {
           icon: cat.icon,
           color: cat.color,
           sortOrder: cat.sortOrder,
+        })
+        .onConflictDoNothing(),
+    );
+  }
+  if (!version) {
+    // First login: every user gets a Cash account (spec: cash is an account; ATM withdrawals transfer into it).
+    statements.push(
+      db
+        .insert(accounts)
+        .values({
+          id: newId(),
+          userId,
+          name: 'Cash',
+          type: 'cash',
+          openingBalanceDate: toIstDate(),
+          color: '#16a34a',
         })
         .onConflictDoNothing(),
     );

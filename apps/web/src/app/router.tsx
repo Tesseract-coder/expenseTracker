@@ -1,5 +1,7 @@
 import { createBrowserRouter } from 'react-router';
 import { AddPage } from '@/features/add/AddPage';
+import { AccountsPage } from '@/features/accounts/AccountsPage';
+import { CategoriesPage } from '@/features/categories/CategoriesPage';
 import { HomePage } from '@/features/home/HomePage';
 import { MorePage } from '@/features/more/MorePage';
 import { ReportsPage } from '@/features/reports/ReportsPage';
@@ -17,6 +19,8 @@ export const routes = [
       { path: 'add', element: <AddPage />, handle: { title: 'Add transaction' } },
       { path: 'reports', element: <ReportsPage />, handle: { title: 'Reports' } },
       { path: 'more', element: <MorePage />, handle: { title: 'More' } },
+      { path: 'more/accounts', element: <AccountsPage />, handle: { title: 'Accounts' } },
+      { path: 'more/categories', element: <CategoriesPage />, handle: { title: 'Categories' } },
       { path: '*', element: <NotFoundPage />, handle: { title: 'Not found' } },
     ],
   },

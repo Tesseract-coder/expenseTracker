@@ -118,6 +118,19 @@ The `reason` string (e.g. `keyword:swiggy → Food delivery`) is stored for "why
 - `future`: upserts `learned_labels` and sets this txn to manual.
 - `past_and_future`: same as `future`, plus `GET .../impact` first returns the count. Apply runs one `UPDATE … WHERE counterparty_id=? AND categorized_by != 'manual'` plus the audit rows, in one batch. Undo replays `audit_log.before`.
 
+### 4.5 API surface (Phase 1)
+
+| Method & path                                                                                        | Purpose                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET/POST /api/accounts`, `GET/PATCH/DELETE /api/accounts/:id`                                       | Accounts with SQL-computed balances. DELETE only when an account has no transactions (409 `account_has_transactions`), otherwise archive via `active=false`.                                                               |
+| `GET/POST /api/categories`, `PATCH /api/categories/:id`, `POST /api/categories/:id/merge`            | Two-level tree. System categories can be renamed/recolored only. Group type changes and archiving cascade to children. Merge (leaf → leaf) moves every reference in one batch, then archives the source.                   |
+| `GET /api/transactions?cursor&limit&accountIds&categoryIds&tagIds&direction&from&to&q&uncategorized` | Keyset pagination on `(txn_date, created_at, id) DESC`. Group ids expand to children and split parts match. `q` searches narration/note/counterparty with `LIKE` (escaped), and numeric `q` also matches the exact amount. |
+| `POST /api/transactions`, `GET/PATCH/DELETE /api/transactions/:id`                                   | Manual CRUD with splits (sum enforced), tags (upserted, replaced on PATCH), counterparty (keyed by `counterpartyKey`) and reimbursement link (must be an incoming txn). DELETE returns an `undoToken`.                     |
+| `POST /api/undo/:token`                                                                              | Replays the `audit_log` batch. Phase 1 supports `delete_txn`.                                                                                                                                                              |
+| `GET /api/tags`, `GET /api/counterparties?q`                                                         | Autocomplete.                                                                                                                                                                                                              |
+
+ID lists are passed to SQL as one JSON parameter (`in (select value from json_each(?))`, `db/batch.ts#inJson`) to stay under D1's 100-bound-parameter limit. Validation errors return `400 validation_error` with `issues[{path, message}]`, which forms map to fields.
+
 ## 5. Reports architecture
 
 All reports read from `v_ledger`. There is one row per categorized money movement, with splits exploded and transfers flagged. See DATA_MODEL.md §4.
