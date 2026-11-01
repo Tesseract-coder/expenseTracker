@@ -45,6 +45,8 @@ export const accountDtoSchema = z.object({
   /** opening balance + Σ signed transactions on/after the opening date. Negative = owed (cards). */
   balancePaise: z.number().int(),
   txnCount: z.number().int(),
+  /** Saved column mapping (from the import wizard) used for this account's next imports. */
+  parserProfileId: z.string().nullable(),
 });
 export type AccountDto = z.infer<typeof accountDtoSchema>;
 

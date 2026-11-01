@@ -1,4 +1,4 @@
-import { ChevronRight, Shapes, Wallet } from 'lucide-react';
+import { ChevronRight, FileUp, History, Shapes, Wallet } from 'lucide-react';
 import { Link } from 'react-router';
 import { useCategories, useHealth, useMe } from '@/app/queries';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +25,8 @@ export function MorePage() {
           {[
             { to: '/more/accounts', label: 'Accounts', icon: Wallet },
             { to: '/more/categories', label: 'Categories', icon: Shapes },
+            { to: '/import', label: 'Import statement', icon: FileUp },
+            { to: '/more/imports', label: 'Import history', icon: History },
           ].map(({ to, label, icon: Icon }) => (
             <li key={to}>
               <Link to={to} className="flex min-h-14 items-center gap-3 px-4 text-sm font-medium">

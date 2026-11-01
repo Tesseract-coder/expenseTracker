@@ -23,8 +23,18 @@ import {
   transactionListResponseSchema,
   transactionResponseSchema,
   undoResponseSchema,
+  type ImportCommitRequest,
+  type ImportPreviewRequest,
+  importCommitResponseSchema,
+  importListResponseSchema,
+  importPreviewResponseSchema,
+  importRevertResponseSchema,
+  importUploadResponseSchema,
+  parserProfileListResponseSchema,
+  parserProfileResponseSchema,
+  type ColumnMapping,
 } from '@kharcha/shared';
-import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost, apiUpload } from '@/lib/api';
 
 export type TxnFilters = Omit<TransactionListQuery, 'cursor' | 'limit'>;
 
@@ -37,6 +47,8 @@ export const queryKeys = {
   counterparties: (q: string) => ['counterparties', q] as const,
   transactions: ['transactions'] as const,
   transactionList: (f: TxnFilters) => ['transactions', 'list', f] as const,
+  imports: ['imports'] as const,
+  parserProfiles: ['parser-profiles'] as const,
 };
 
 export const useHealth = () =>
@@ -227,5 +239,66 @@ export function useMergeCategory() {
         categoryMergeResponseSchema,
       ),
     onSuccess: () => invalidate(queryKeys.categories, queryKeys.transactions),
+  });
+}
+
+// ---------------------------------------------------------------------------- imports
+
+export const useImports = () =>
+  useQuery({
+    queryKey: queryKeys.imports,
+    queryFn: () => apiGet('/imports', importListResponseSchema),
+    select: (d) => d.imports,
+  });
+
+export const useParserProfiles = () =>
+  useQuery({
+    queryKey: queryKeys.parserProfiles,
+    queryFn: () => apiGet('/parser-profiles', parserProfileListResponseSchema),
+    select: (d) => d.profiles,
+  });
+
+export function useUploadStatement() {
+  return useMutation({
+    mutationFn: ({ accountId, file }: { accountId: string; file: File }) => {
+      const form = new FormData();
+      form.set('accountId', accountId);
+      form.set('file', file);
+      return apiUpload('/imports', form, importUploadResponseSchema);
+    },
+  });
+}
+
+export function usePreviewImport() {
+  return useMutation({
+    mutationFn: ({ importId, body }: { importId: string; body: ImportPreviewRequest }) =>
+      apiPost(`/imports/${importId}/preview`, body, importPreviewResponseSchema),
+  });
+}
+
+export function useCommitImport() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ importId, body }: { importId: string; body: ImportCommitRequest }) =>
+      apiPost(`/imports/${importId}/commit`, body, importCommitResponseSchema),
+    onSuccess: () => invalidate(...TXN_KEYS, queryKeys.imports),
+  });
+}
+
+export function useRevertImport() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (importId: string) =>
+      apiPost(`/imports/${importId}/revert`, {}, importRevertResponseSchema),
+    onSuccess: () => invalidate(...TXN_KEYS, queryKeys.imports),
+  });
+}
+
+export function useSaveParserProfile() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (body: { name: string; mapping: ColumnMapping; accountId: string | null }) =>
+      apiPost('/parser-profiles', body, parserProfileResponseSchema),
+    onSuccess: () => invalidate(queryKeys.parserProfiles, queryKeys.accounts),
   });
 }

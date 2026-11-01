@@ -55,7 +55,15 @@ test.describe('PWA shell', () => {
         openingBalanceDate: '2026-01-01',
       },
     });
-    for (const path of ['/', '/transactions', '/more', '/more/accounts', '/more/categories']) {
+    for (const path of [
+      '/',
+      '/transactions',
+      '/more',
+      '/more/accounts',
+      '/more/categories',
+      '/import',
+      '/more/imports',
+    ]) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
       const overflow = await page.evaluate(

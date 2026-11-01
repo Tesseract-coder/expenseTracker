@@ -2,6 +2,7 @@ export interface Env {
   DB: D1Database;
   STATEMENTS: R2Bucket;
   ASSETS: Fetcher;
+  UPLOAD_LIMITER?: RateLimit;
   APP_ENV: 'dev' | 'test' | 'preview' | 'production';
   APP_VERSION: string;
   AUTH_MODE: 'dev' | 'access';

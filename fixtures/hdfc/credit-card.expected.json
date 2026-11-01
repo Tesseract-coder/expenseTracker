@@ -1,0 +1,95 @@
+{
+  "profile": "hdfc_cc_v1",
+  "mapping": {
+    "headerRow": 0,
+    "dateCol": 0,
+    "valueDateCol": null,
+    "narrationCols": [1],
+    "refCol": null,
+    "balanceCol": null,
+    "amount": {
+      "kind": "amount_with_type",
+      "amountCol": 2,
+      "typeCol": 3,
+      "defaultDirection": "out"
+    },
+    "dateOrder": "dmy"
+  },
+  "rows": [
+    {
+      "txnDate": "2026-10-03",
+      "valueDate": null,
+      "narration": "SWIGGY BANGALORE",
+      "refNo": null,
+      "amountPaise": 124500,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 2
+    },
+    {
+      "txnDate": "2026-10-04",
+      "valueDate": null,
+      "narration": "AMAZON PAY INDIA PRIVATE LI MUMBAI",
+      "refNo": null,
+      "amountPaise": 349900,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 3
+    },
+    {
+      "txnDate": "2026-10-07",
+      "valueDate": null,
+      "narration": "NETFLIX.COM MUMBAI",
+      "refNo": null,
+      "amountPaise": 64900,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 4
+    },
+    {
+      "txnDate": "2026-10-09",
+      "valueDate": null,
+      "narration": "AMAZON PAY INDIA PRIVATE LI MUMBAI (REFUND)",
+      "refNo": null,
+      "amountPaise": 129900,
+      "direction": "in",
+      "balancePaise": null,
+      "sourceRow": 5
+    },
+    {
+      "txnDate": "2026-10-15",
+      "valueDate": null,
+      "narration": "PAYMENT RECEIVED, THANK YOU",
+      "refNo": null,
+      "amountPaise": 1850000,
+      "direction": "in",
+      "balancePaise": null,
+      "sourceRow": 6
+    },
+    {
+      "txnDate": "2026-10-18",
+      "valueDate": null,
+      "narration": "INDIAN OIL PETROL PUMP PUNE",
+      "refNo": null,
+      "amountPaise": 200000,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 7
+    },
+    {
+      "txnDate": "2026-10-18",
+      "valueDate": null,
+      "narration": "FUEL SURCHARGE WAIVER",
+      "refNo": null,
+      "amountPaise": 2000,
+      "direction": "in",
+      "balancePaise": null,
+      "sourceRow": 8
+    }
+  ],
+  "errors": [],
+  "skipped": 0,
+  "from": "2026-10-03",
+  "to": "2026-10-18",
+  "closingBalancePaise": null
+}

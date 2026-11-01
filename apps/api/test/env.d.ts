@@ -5,6 +5,7 @@ declare global {
   namespace Cloudflare {
     interface Env extends AppBindings {
       TEST_MIGRATIONS: D1Migration[];
+      TEST_FIXTURES: { hdfcSavings: any[]; hdfcCard: any[] };
     }
   }
 }

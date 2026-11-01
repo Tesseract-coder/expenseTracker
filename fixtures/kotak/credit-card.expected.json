@@ -1,0 +1,55 @@
+{
+  "profile": "kotak_cc_v1",
+  "mapping": {
+    "headerRow": 0,
+    "dateCol": 0,
+    "valueDateCol": null,
+    "narrationCols": [1],
+    "refCol": null,
+    "balanceCol": null,
+    "amount": {
+      "kind": "amount_with_type",
+      "amountCol": 3,
+      "typeCol": 4,
+      "defaultDirection": "out"
+    },
+    "dateOrder": "dmy"
+  },
+  "rows": [
+    {
+      "txnDate": "2026-10-03",
+      "valueDate": null,
+      "narration": "DMART AVENUE SUPERMARTS PUNE",
+      "refNo": null,
+      "amountPaise": 156000,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 2
+    },
+    {
+      "txnDate": "2026-10-09",
+      "valueDate": null,
+      "narration": "HOTSTAR MUMBAI",
+      "refNo": null,
+      "amountPaise": 29900,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 3
+    },
+    {
+      "txnDate": "2026-10-16",
+      "valueDate": null,
+      "narration": "PAYMENT RECEIVED",
+      "refNo": null,
+      "amountPaise": 185900,
+      "direction": "in",
+      "balancePaise": null,
+      "sourceRow": 4
+    }
+  ],
+  "errors": [],
+  "skipped": 0,
+  "from": "2026-10-03",
+  "to": "2026-10-16",
+  "closingBalancePaise": null
+}

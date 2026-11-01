@@ -38,6 +38,7 @@ export async function listAccounts(db: Db, userId: string, id?: string): Promise
     sortOrder: a.sortOrder,
     balancePaise: a.openingBalancePaise + Number(movement),
     txnCount: Number(txnCount),
+    parserProfileId: a.parserProfileId,
   }));
 }
 

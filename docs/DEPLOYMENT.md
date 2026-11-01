@@ -78,17 +78,23 @@ Both deploy workflows use concurrency groups, so deploys never overlap.
 
 **Reset the preview DB** if a PR's migration is abandoned: `wrangler d1 delete kharcha-preview`, re-run the bootstrap script, update the ID, then `pnpm db:migrate:preview`.
 
-## 7. Migrations and rollback
+## 7. Limits worth knowing (Workers Free)
+
+- **Rate limiting:** `UPLOAD_LIMITER` uses the Workers Rate Limiting binding. Each env has its own `namespace_id` (1001/1002/1003) in `wrangler.toml`; these are arbitrary per-account identifiers, so change them if they collide with your other Workers.
+- **Statement size:** imports are capped at 3,000 rows and 5 MB. On the Free plan's 10 ms CPU limit, files over roughly 800 rows can fail with Cloudflare's CPU-limit error (ARCHITECTURE §4.2), so import monthly or quarterly statements.
+- **R2:** original statements and short-lived `preview.json` files live under `u/{userId}/imports/…`. Both stay private and are only served through the authenticated API.
+
+## 8. Migrations and rollback
 
 - Migrations are forward-only and run **before** the new code deploys, so each one must work with the currently deployed Worker (expand/contract, DATA_MODEL §7).
 - Code rollback: `pnpm --filter @kharcha/api exec wrangler rollback --env production`. A schema rollback is a new forward migration.
 - D1 Time Travel (point-in-time restore, last 7 days on Free) is the disaster-recovery path: `wrangler d1 time-travel restore kharcha-prod --timestamp <ISO>`.
 
-## 8. Adding a custom domain later
+## 9. Adding a custom domain later
 
 Add `routes = [{ pattern = "kharcha.<yourdomain>", custom_domain = true }]` under `[env.production]`, protect that hostname with an Access app (new AUD → `ACCESS_AUD`), then optionally set `workers_dev = false`. No code changes needed.
 
-## 9. Local development
+## 10. Local development
 
 ```bash
 cp apps/api/.dev.vars.example apps/api/.dev.vars

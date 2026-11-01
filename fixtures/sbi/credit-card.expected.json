@@ -1,0 +1,65 @@
+{
+  "profile": "sbi_cc_v1",
+  "mapping": {
+    "headerRow": 0,
+    "dateCol": 0,
+    "valueDateCol": null,
+    "narrationCols": [1],
+    "refCol": null,
+    "balanceCol": null,
+    "amount": {
+      "kind": "amount_with_type",
+      "amountCol": 2,
+      "typeCol": 3,
+      "defaultDirection": "out"
+    },
+    "dateOrder": "dmy"
+  },
+  "rows": [
+    {
+      "txnDate": "2026-10-02",
+      "valueDate": null,
+      "narration": "BIGBASKET BANGALORE",
+      "refNo": null,
+      "amountPaise": 234560,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 2
+    },
+    {
+      "txnDate": "2026-10-04",
+      "valueDate": null,
+      "narration": "MAKEMYTRIP INDIA PVT LTD",
+      "refNo": null,
+      "amountPaise": 899900,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 3
+    },
+    {
+      "txnDate": "2026-10-12",
+      "valueDate": null,
+      "narration": "PAYMENT RECEIVED - NEFT",
+      "refNo": null,
+      "amountPaise": 1134460,
+      "direction": "in",
+      "balancePaise": null,
+      "sourceRow": 4
+    },
+    {
+      "txnDate": "2026-10-20",
+      "valueDate": null,
+      "narration": "JIO PREPAID RECHARGE",
+      "refNo": null,
+      "amountPaise": 29900,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 5
+    }
+  ],
+  "errors": [],
+  "skipped": 0,
+  "from": "2026-10-02",
+  "to": "2026-10-20",
+  "closingBalancePaise": null
+}

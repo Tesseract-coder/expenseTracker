@@ -1,0 +1,55 @@
+{
+  "profile": "axis_cc_v1",
+  "mapping": {
+    "headerRow": 0,
+    "dateCol": 0,
+    "valueDateCol": null,
+    "narrationCols": [1],
+    "refCol": null,
+    "balanceCol": null,
+    "amount": {
+      "kind": "amount_with_type",
+      "amountCol": 3,
+      "typeCol": 4,
+      "defaultDirection": "out"
+    },
+    "dateOrder": "dmy"
+  },
+  "rows": [
+    {
+      "txnDate": "2026-10-05",
+      "valueDate": null,
+      "narration": "MYNTRA DESIGNS BANGALORE",
+      "refNo": null,
+      "amountPaise": 279900,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 2
+    },
+    {
+      "txnDate": "2026-10-11",
+      "valueDate": null,
+      "narration": "RAPIDO BIKE TAXI",
+      "refNo": null,
+      "amountPaise": 8900,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 3
+    },
+    {
+      "txnDate": "2026-10-14",
+      "valueDate": null,
+      "narration": "PAYMENT RECEIVED THANK YOU",
+      "refNo": null,
+      "amountPaise": 288800,
+      "direction": "in",
+      "balancePaise": null,
+      "sourceRow": 4
+    }
+  ],
+  "errors": [],
+  "skipped": 0,
+  "from": "2026-10-05",
+  "to": "2026-10-14",
+  "closingBalancePaise": null
+}

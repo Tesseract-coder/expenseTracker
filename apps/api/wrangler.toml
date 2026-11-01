@@ -36,6 +36,12 @@ migrations_dir = "../../migrations"
 binding = "STATEMENTS"
 bucket_name = "kharcha-statements-dev"
 
+
+[[ratelimits]]
+name = "UPLOAD_LIMITER"
+namespace_id = "1001"
+simple = { limit = 30, period = 60 }
+
 # ---------------------------------------------------------------------------
 [env.preview]
 name = "kharcha-preview"
@@ -61,6 +67,12 @@ migrations_dir = "../../migrations"
 binding = "STATEMENTS"
 bucket_name = "kharcha-statements-preview"
 
+
+[[env.preview.ratelimits]]
+name = "UPLOAD_LIMITER"
+namespace_id = "1002"
+simple = { limit = 30, period = 60 }
+
 # ---------------------------------------------------------------------------
 [env.production]
 name = "kharcha"
@@ -85,6 +97,11 @@ migrations_dir = "../../migrations"
 [[env.production.r2_buckets]]
 binding = "STATEMENTS"
 bucket_name = "kharcha-statements"
+
+[[env.production.ratelimits]]
+name = "UPLOAD_LIMITER"
+namespace_id = "1003"
+simple = { limit = 30, period = 60 }
 
 # Optional, add per env when enabled:
 # [[env.production.queues.producers]]  binding = "IMPORT_QUEUE"  queue = "kharcha-jobs"

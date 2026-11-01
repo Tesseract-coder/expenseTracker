@@ -143,6 +143,7 @@ export const transactionListQuerySchema = z.object({
   to: isoDateSchema.optional(),
   /** Searches narration, note and counterparty name; numeric queries also match the exact amount. */
   q: z.string().trim().max(100).optional(),
+  importId: idSchema.optional(),
   uncategorized: z
     .enum(['true', 'false'])
     .transform((v) => v === 'true')

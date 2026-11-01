@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-plugin';
 import { defineConfig } from 'vitest/config';
@@ -9,6 +9,12 @@ export default defineConfig(async () => {
   // wrangler.toml points [assets] at the web build; make sure the directory exists for tests.
   mkdirSync(here('../web/dist'), { recursive: true });
   const migrations = await readD1Migrations(here('../../migrations'));
+  // Golden parser outputs double as realistic import payloads for API tests.
+  const golden = (p: string) => JSON.parse(readFileSync(here(`../../fixtures/${p}`), 'utf8')).rows;
+  const fixtures = {
+    hdfcSavings: golden('hdfc/savings.expected.json'),
+    hdfcCard: golden('hdfc/credit-card.expected.json'),
+  };
 
   return {
     plugins: [
@@ -19,6 +25,7 @@ export default defineConfig(async () => {
             APP_ENV: 'test',
             ALLOWED_EMAILS: 'me@example.com',
             TEST_MIGRATIONS: migrations,
+            TEST_FIXTURES: fixtures,
           },
         },
       }),

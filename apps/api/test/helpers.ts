@@ -90,3 +90,46 @@ export async function cashAccountId(): Promise<string> {
   const { body } = await getJson('/api/accounts');
   return body.accounts.find((a: any) => a.type === 'cash').id;
 }
+
+export async function upload(
+  accountId: string,
+  name = 'statement.csv',
+  content = 'Date,Narration\n',
+): Promise<CallResult> {
+  const form = new FormData();
+  form.set('accountId', accountId);
+  form.set('file', new File([content], name, { type: 'text/csv' }));
+  const res = await devApp.request(
+    'http://localhost/api/imports',
+    { method: 'POST', body: form },
+    devEnv(),
+  );
+  return { status: res.status, body: await res.json() };
+}
+
+export function previewBody(rows: any[], extra: Record<string, unknown> = {}) {
+  const dates = rows.map((r) => r.txnDate).sort();
+  return {
+    profileId: 'hdfc_savings_v1',
+    rows,
+    statementFrom: dates[0] ?? null,
+    statementTo: dates.at(-1) ?? null,
+    closingBalancePaise: null,
+    parseErrors: 0,
+    ...extra,
+  };
+}
+
+/** Upload + preview + commit in one go; returns the import id and commit result. */
+export async function importRows(
+  accountId: string,
+  rows: any[],
+  commit: Record<string, unknown> = {},
+  content?: string,
+) {
+  const up = await upload(accountId, 'statement.csv', content ?? `rows-${Math.random()}`);
+  const id = up.body.importId as string;
+  const preview = await postJson(`/api/imports/${id}/preview`, previewBody(rows));
+  const committed = await postJson(`/api/imports/${id}/commit`, commit);
+  return { id, preview: preview.body, commit: committed.body, status: committed.status };
+}

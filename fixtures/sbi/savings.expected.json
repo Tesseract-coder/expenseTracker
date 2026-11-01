@@ -1,0 +1,84 @@
+{
+  "profile": "sbi_savings_v1",
+  "mapping": {
+    "headerRow": 6,
+    "dateCol": 0,
+    "valueDateCol": 1,
+    "narrationCols": [2],
+    "refCol": 3,
+    "balanceCol": 6,
+    "amount": {
+      "kind": "debit_credit",
+      "debitCol": 4,
+      "creditCol": 5
+    },
+    "dateOrder": "dmy"
+  },
+  "rows": [
+    {
+      "txnDate": "2026-10-01",
+      "valueDate": "2026-10-01",
+      "narration": "BY TRANSFER-NEFT*HDFC0000123*N274262626*ACME TECH PVT LTD-",
+      "refNo": "TRANSFER FROM 4897691162098",
+      "amountPaise": 9500000,
+      "direction": "in",
+      "balancePaise": 12000000,
+      "sourceRow": 8
+    },
+    {
+      "txnDate": "2026-10-02",
+      "valueDate": "2026-10-02",
+      "narration": "TO TRANSFER-UPI/DR/427512345678/RAMESH K/SBIN/ramesh.k@okaxis/veg",
+      "refNo": "TRANSFER TO 4897694162092",
+      "amountPaise": 42000,
+      "direction": "out",
+      "balancePaise": 11958000,
+      "sourceRow": 9
+    },
+    {
+      "txnDate": "2026-10-03",
+      "valueDate": "2026-10-03",
+      "narration": "ATM WDL-ATM CASH 1234 PUNE CAMP",
+      "refNo": null,
+      "amountPaise": 500000,
+      "direction": "out",
+      "balancePaise": 11458000,
+      "sourceRow": 10
+    },
+    {
+      "txnDate": "2026-10-05",
+      "valueDate": "2026-10-05",
+      "narration": "TO TRANSFER-INB HDFC CREDIT CARD BILL PAYMENT XX4321",
+      "refNo": "TRANSFER TO 4897694162099",
+      "amountPaise": 1850000,
+      "direction": "out",
+      "balancePaise": 9608000,
+      "sourceRow": 11
+    },
+    {
+      "txnDate": "2026-10-10",
+      "valueDate": "2026-10-10",
+      "narration": "DEBIT-ACHDr NACH00000000012345 ZERODHA BROKING LTD",
+      "refNo": null,
+      "amountPaise": 1000000,
+      "direction": "out",
+      "balancePaise": 8608000,
+      "sourceRow": 12
+    },
+    {
+      "txnDate": "2026-10-31",
+      "valueDate": "2026-10-31",
+      "narration": "CREDIT INTEREST",
+      "refNo": null,
+      "amountPaise": 31200,
+      "direction": "in",
+      "balancePaise": 8639200,
+      "sourceRow": 13
+    }
+  ],
+  "errors": [],
+  "skipped": 0,
+  "from": "2026-10-01",
+  "to": "2026-10-31",
+  "closingBalancePaise": 8639200
+}

@@ -1,0 +1,75 @@
+{
+  "profile": "kotak_savings_v1",
+  "mapping": {
+    "headerRow": 3,
+    "dateCol": 1,
+    "valueDateCol": 2,
+    "narrationCols": [3],
+    "refCol": 4,
+    "balanceCol": 7,
+    "amount": {
+      "kind": "amount_with_type",
+      "amountCol": 5,
+      "typeCol": 6,
+      "defaultDirection": "out"
+    },
+    "dateOrder": "dmy"
+  },
+  "rows": [
+    {
+      "txnDate": "2026-10-01",
+      "valueDate": "2026-10-01",
+      "narration": "NEFT CR-HDFC0000123-ACME TECH PVT LTD-SALARY OCT",
+      "refNo": "N274262626",
+      "amountPaise": 9500000,
+      "direction": "in",
+      "balancePaise": 10500000,
+      "sourceRow": 5
+    },
+    {
+      "txnDate": "2026-10-02",
+      "valueDate": "2026-10-02",
+      "narration": "UPI/swiggy.instamart@ybl/Payment/SWIGGY LIMITED",
+      "refNo": "UPI-427512345678",
+      "amountPaise": 45050,
+      "direction": "out",
+      "balancePaise": 10454950,
+      "sourceRow": 6
+    },
+    {
+      "txnDate": "2026-10-02",
+      "valueDate": "2026-10-02",
+      "narration": "UPI/chaiwala@paytm/Payment/CHAI POINT",
+      "refNo": "UPI-427512345679",
+      "amountPaise": 2000,
+      "direction": "out",
+      "balancePaise": 10452950,
+      "sourceRow": 7
+    },
+    {
+      "txnDate": "2026-10-03",
+      "valueDate": "2026-10-03",
+      "narration": "IMPS-427511112222-SELF-HDFC XX1234",
+      "refNo": "IMPS-427511112222",
+      "amountPaise": 2000000,
+      "direction": "out",
+      "balancePaise": 8452950,
+      "sourceRow": 8
+    },
+    {
+      "txnDate": "2026-10-05",
+      "valueDate": "2026-10-05",
+      "narration": "SMS CHARGES QTR SEP-26 INCL GST",
+      "refNo": null,
+      "amountPaise": 1770,
+      "direction": "out",
+      "balancePaise": 8451180,
+      "sourceRow": 9
+    }
+  ],
+  "errors": [],
+  "skipped": 0,
+  "from": "2026-10-01",
+  "to": "2026-10-05",
+  "closingBalancePaise": 8451180
+}

@@ -19,14 +19,15 @@ async function request<T extends z.ZodType>(
   schema: T | null,
   body?: unknown,
 ): Promise<z.infer<T>> {
+  const isForm = body instanceof FormData;
   const res = await fetch(`/api${path}`, {
     method,
     credentials: 'same-origin',
     headers: {
       accept: 'application/json',
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(body === undefined || isForm ? {} : { 'content-type': 'application/json' }),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   });
   const json: unknown = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) {
@@ -48,6 +49,9 @@ export const apiPost = <T extends z.ZodType>(path: string, body: unknown, schema
   request('POST', path, schema, body);
 export const apiPatch = <T extends z.ZodType>(path: string, body: unknown, schema: T) =>
   request('PATCH', path, schema, body);
+/** Multipart upload; the browser sets the boundary header. */
+export const apiUpload = <T extends z.ZodType>(path: string, form: FormData, schema: T) =>
+  request('POST', path, schema, form);
 export const apiDelete = <T extends z.ZodType>(path: string, schema: T | null = null) =>
   request('DELETE', path, schema);
 

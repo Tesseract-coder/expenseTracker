@@ -90,13 +90,33 @@ Package dependency rule: `web → shared`, `api → shared`. `shared` depends on
 `requestId → securityHeaders → accessAuth (sets c.var.user) → rateLimit (upload/bulk routes) → zValidator → route → service → repository (Drizzle) → JSON`.
 Errors map to `{ error: { code, message } }` with stable codes. Logs contain request id, route, status and latency, and **never** narrations, amounts, VPAs or emails.
 
-### 4.2 Statement import
+### 4.2 Statement import (Phase 2, implemented)
 
-1. **Client:** pick account, then pick file. The client detects the profile (account's saved profile, then header sniffing across built-in profiles, then the mapping wizard) and parses to `ParsedRow[]`.
-2. **Client:** `POST /api/imports` (multipart: file + metadata). The Worker stores the file in R2 at `u/{userId}/imports/{importId}/{sha256}.{ext}` and creates an `imports` row with `status=uploaded`. If the file's sha256 was already imported for this account, the API warns.
-3. **Client:** `POST /api/imports/:id/preview` with rows. The Worker normalizes, fingerprints, checks exact duplicates (fingerprint lookup), finds near-duplicates, runs categorization, detects transfer/CC-payment candidates, and returns the preview. Nothing is committed yet. The preview is cached in R2 as `preview.json` for about 1 hour.
-4. **Client:** `POST /api/imports/:id/commit` with user decisions (skip/keep for near-dups, category overrides). The Worker inserts in chunked `db.batch()` calls of about 50 rows each, keeping bound parameters under D1's 100-per-statement limit. It updates counterparties and import counts and writes an audit entry.
-5. Large imports (more than 2,000 rows) in `queue` mode: the commit enqueues `{importId}` and the consumer reads `preview.json` from R2.
+1. **Client: read.** `readStatementFile` lazily loads `@kharcha/shared/spreadsheet`, a separate entry point, so neither the Worker nor the main web chunk contains SheetJS. CSV/TXT go through **PapaParse**, which keeps every cell a raw string (no leading-zero loss in refs, no day/month flips). XLS/XLSX go through **SheetJS 0.20.3**, pinned to the official CDN tarball because npm's `xlsx` 0.18.5 has known CVEs. Text/HTML files masquerading as `.xls` are detected by magic bytes.
+2. **Client: map.** Mapping is resolved in this order: the account's saved profile, then `detectProfile(grid, {bank, accountType})` over 10 built-in header-alias profiles, then the **mapping wizard** prefilled by `guessGenericMapping`. Every path produces one `ColumnMapping`, applied by the single pure engine `parseGrid`. The engine handles wrapped narrations, repeated page headers, opening-balance and summary rows, footer blocks, Dr/Cr columns or suffixes, and signed amounts. Wizard mappings can be saved per account (`parser_profiles`).
+3. **`POST /api/imports`** (multipart): the original file goes to R2 at `u/{userId}/imports/{importId}/{sha256}.{ext}` (private, served back only through the authenticated `/file` route). The import row starts as `uploaded`. If the same file (by SHA-256) was already committed to the account, the API warns.
+4. **`POST /api/imports/:id/preview`** with Zod-validated rows (≤ 3,000). The server recomputes everything itself:
+   - **fingerprints**, including occurrence numbering
+   - **exact duplicates**, in one query with the fingerprints as a single JSON parameter
+   - **near-duplicates**, against same-account rows within ±3 days (bucketed by amount)
+   - **transfer pairs** against other accounts' unpaired rows, plus single-leg card-payment and self-transfer hints
+   - **reconciliation** of the statement's closing balance against the projected balance
+
+   The full preview is stored as `preview.json` in R2 and the import becomes `previewed`. Re-previewing (e.g. after adjusting columns) reuses the uploaded file.
+
+5. **`POST /api/imports/:id/commit`** `{includeNearDuplicates, acceptTransfers}`: an atomic claim (`status previewed → committing`, checking `changes = 1`) prevents double commits. Then a **single `DB.batch`** runs:
+   - `INSERT OR IGNORE … SELECT … FROM json_each(?)` in chunks of 500 rows (one bound JSON parameter each)
+   - one `UPDATE … FROM json_each` that links transfer counterparts and drops their splits
+
+   On any failure the status reverts to `previewed`. Imported rows are Uncategorized until the Phase 3 engine runs; accepted transfers get the system category and a shared `transfer_group_id`.
+
+6. **`POST /api/imports/:id/revert`** deletes the import's rows and un-links counterparts (back to Uncategorized). The R2 file is kept. **`GET /api/imports/:id/file`** downloads the original.
+
+**Why bulk SQL over JSON parameters:** on Workers Free, D1 allows only a small number of queries per invocation (50 on Free), and every statement is limited to 100 bound parameters. Passing rows as one JSON parameter and expanding with `json_each` keeps a 3,000-row commit to a handful of statements.
+
+**CPU budget (Workers Free = 10 ms):** measured warm in Node at 3,000 rows: JSON + Zod 17.6 ms, fingerprints 13 ms, near-duplicates 4.5 ms, transfers 1.7 ms, **≈ 12 µs/row total**. Monthly statements (50–300 rows ≈ 1–4 ms) are well inside the budget. Files above roughly 800 rows (e.g. a full year in one download) can exceed it and fail with Cloudflare's CPU-limit error. On Free, import monthly or quarterly files; see §9.14 for options.
+
+Upload, preview, commit and revert are rate-limited per user (`UPLOAD_LIMITER`, a Workers Rate Limiting binding, 30/min).
 
 ### 4.3 Categorization (runs server-side on create/import/rule change)
 
@@ -118,7 +138,7 @@ The `reason` string (e.g. `keyword:swiggy → Food delivery`) is stored for "why
 - `future`: upserts `learned_labels` and sets this txn to manual.
 - `past_and_future`: same as `future`, plus `GET .../impact` first returns the count. Apply runs one `UPDATE … WHERE counterparty_id=? AND categorized_by != 'manual'` plus the audit rows, in one batch. Undo replays `audit_log.before`.
 
-### 4.5 API surface (Phase 1)
+### 4.5 API surface
 
 | Method & path                                                                                        | Purpose                                                                                                                                                                                                                    |
 | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

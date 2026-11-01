@@ -1,5 +1,6 @@
 import { List, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { periodRange, toIstDate, previousPeriodRange } from '@kharcha/shared';
 import { useAccounts, useCategoryMap, useTags, useTransactions } from '@/app/queries';
 import { EmptyState } from '@/components/EmptyState';
@@ -118,9 +119,17 @@ export function TransactionsPage() {
           icon={List}
           title={activeCount || filters.q ? 'No matching transactions' : 'No transactions yet'}
         >
-          {activeCount || filters.q
-            ? 'Try a different search or clear filters.'
-            : 'Tap + to add your first one.'}
+          {activeCount || filters.q ? (
+            'Try a different search or clear filters.'
+          ) : (
+            <>
+              Tap + to add one, or{' '}
+              <Link to="/import" className="font-medium text-primary underline">
+                import a bank statement
+              </Link>
+              .
+            </>
+          )}
         </EmptyState>
       ) : (
         <div className="flex flex-col gap-4">

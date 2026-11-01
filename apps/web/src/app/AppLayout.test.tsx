@@ -22,6 +22,7 @@ const RESPONSES: Record<string, unknown> = {
         sortOrder: 0,
         balancePaise: 123456,
         txnCount: 0,
+        parserProfileId: null,
       },
     ],
   },

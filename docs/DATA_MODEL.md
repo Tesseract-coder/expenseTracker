@@ -287,21 +287,24 @@ Report formulas (period P):
 ## 5. Dedup fingerprint
 
 ```
-fingerprint = sha256_hex(
-  account_id | txn_date | amount_paise | direction |
-  normalize_for_fp(raw_narration) | (ref_no ?? '') | occurrence
+fingerprint = 'f1' + murmur3_x86_128_hex(
+  account_id | txn_date | amount_paise | direction | normalize_for_fp(narration) | (ref_no ?? '') | occurrence
 )
 ```
 
-- `normalize_for_fp`: uppercase, collapse whitespace, strip trailing balances/footnote markers. **Not** the counterparty key, so normalizer upgrades don't change fingerprints.
-- `occurrence`: 0 for the first row with an identical tuple within a source batch, 1 for the second, and so on (see ARCHITECTURE §9.3).
-- **Near-duplicate**: same account, same amount and direction, `|Δdate| ≤ 2 days`, and narration token-Jaccard ≥ 0.5 or the same ref_no or the same counterparty, against existing rows not in the same import. Shown for review, never auto-skipped.
-- Manual entries get `fingerprint = sha256('manual'|id)`, so they never collide, but they still take part in near-duplicate checks when a statement is later imported (e.g. a manual cash entry vs. an imported ATM withdrawal).
+- `normalize_for_fp`: uppercase and collapse whitespace only. It is **not** the counterparty normalizer, so improving categorization never changes the fingerprints of rows already stored.
+- `ref_no`: placeholder references (all zeros or dashes) are stored as NULL, so they never produce false "same reference" matches.
+- `occurrence`: 0 for the first row with an identical tuple within a source batch, 1 for the second, and so on (two genuine ₹20 payments on one day both import; re-importing an overlapping statement reproduces the same numbers, so it still dedupes). Identical tuples always share a date.
+- Why Murmur rather than SHA-256: see ARCHITECTURE §9.15. Manual entries use `sha256('manual|' || id)`, so they never collide with imported rows.
+- **Near-duplicate**: same account, same amount and direction, `|Δdate| ≤ 2 days`, and one of: same `ref_no`; narration token-Jaccard ≥ 0.5 (channel words and pure numbers ignored); or the existing row has no bank narration (manual or SMS entry: a free-text note is not compared). Shown for review and skipped unless the user ticks it.
 
 ## 6. Transfer detection
 
 - **Self-transfer**: out on account A and in on account B (A ≠ B, both mine), same amount, `|Δdate| ≤ 2`. Alternatively, the narration contains one of my account last-4s, my VPAs (setting `my_vpas`) or my name. Candidates are suggested; confirming assigns the same `transfer_group_id` and the System › Self transfer category to both legs.
-- **CC bill payment**: out from savings/current with narration matching CC payment patterns (`CC PAYMENT`, `CREDIT CARD`, `BILLDESK.*CARD`, card last-4), paired with an in on a `credit_card` account with the same amount within ±3 days. Both legs become System › Credit card bill payment.
+- **CC bill payment**: an out from savings/current paired with an in on a `credit_card` account, same amount, within ±3 days. Both legs become System › Credit card bill payment.
+- Pairing is one-to-one and greedy, strongest evidence first (narration mentions the other account's last-4 digits, card-payment wording such as `CREDIT CARD`, `CC … AUTOPAY`, `BILLDESK…CARD`, `CRED`, or `PAYMENT RECEIVED` / `BBPS` on the card), then closest date. Debits _from_ a card are never treated as transfers out.
+- **Single-leg hints** cover the case where the other side isn't in Kharcha yet: card-payment wording, or a mention of the user's **card** last-4, gives `cc_bill_payment`; a mention of another **bank** account's last-4 gives `self_transfer` (medium confidence). Hints are suggestions and are only applied when accepted at commit.
+- On commit, an accepted pair gets a shared `transfer_group_id`. Reverting an import resets the counterparts to Uncategorized.
 
 ## 7. Migration policy
 
@@ -315,4 +318,5 @@ fingerprint = sha256_hex(
 
 - 2026-11-01: ATM = transfer to Cash; refunds = negative spend; Workers Free plan; React 19.
 - 2026-11-01 (Phase 0): added `categories.slug`; FTS5 and `v_ledger` deferred to the phases that use them.
+- 2026-11-01 (Phase 2): fingerprints switched to MurmurHash3-128 (`f1` prefix) before any production data existed. Preview payloads live in R2 (`preview.json`) between preview and commit. `imports.parser_profile_id` stores the built-in profile id or a saved profile id.
 - 2026-11-01 (Phase 1): every user gets a seeded **Cash** account on first login. Manual transactions have `channel = NULL`, `source = 'manual'`, `categorized_by = 'manual'` (or `'none'` → Uncategorized). Balances count only transactions dated on/after `opening_balance_date`. Category merge drops source budgets that collide with a target budget for the same month. Recategorizations write `audit_log` rows (`recategorize`); deletes write full snapshots (`delete_txn`) for undo.

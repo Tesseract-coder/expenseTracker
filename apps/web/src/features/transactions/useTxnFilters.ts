@@ -18,6 +18,7 @@ export function useTxnFilters() {
       tagIds: get('tagIds'),
       direction: direction === 'in' || direction === 'out' ? (direction as Direction) : undefined,
       from: get('from'),
+      importId: get('importId'),
       to: get('to'),
       uncategorized: params.get('uncategorized') === 'true' ? 'true' : undefined,
     };

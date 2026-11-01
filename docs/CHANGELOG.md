@@ -1,5 +1,17 @@
 # Changelog
 
+## Phase 2 — Statement import (2026-11-01)
+
+- **Import flow** (`/import`): choose account and file (CSV/TXT/XLS/XLSX, up to 5 MB / 3,000 rows). The format is auto-detected, then the preview shows new rows, already-imported rows, possible duplicates (opt-in), unreadable rows, transfer suggestions and balance reconciliation. Commit is atomic and protected against double commits.
+- **Built-in profiles** for HDFC, ICICI, SBI, Axis and Kotak, each for savings/current and credit cards (10 total). The **mapping wizard** handles anything else with a live parse preview, and mappings can be saved per account so the next import is one tap.
+- **Dedup**: per-row fingerprints with occurrence numbering (genuine repeats survive, overlapping re-imports never duplicate), a same-file warning, and near-duplicate detection against manual entries.
+- **Transfers**: self-transfer and credit-card bill-payment pairing across accounts, single-leg hints when the other side isn't imported, accepted pairs linked with a shared group and the system category.
+- **Import history** (`/more/imports`): counts and status, download the original from R2, revert an import.
+- Original statements are stored privately in R2. Upload/preview/commit/revert are rate-limited per user.
+- Engine: one pure `parseGrid` for profiles and the wizard. SheetJS 0.20.3 is pinned from the official CDN (npm `xlsx` 0.18.5 has CVEs) and lazy-loaded in its own chunk. PapaParse handles CSV.
+- **Performance**: fingerprints moved from WebCrypto SHA-256 to MurmurHash3-128, and matching is bucketed by amount. Preview CPU dropped from ~250 ms to ~37 ms per 3,000 rows (~12 µs/row).
+- Tests: 10 golden-file fixtures (+ deterministic XLSX generator), 114 import-engine unit tests (shared ≥ 99% statements), 18 new API integration tests (dedup, near-dups, transfers, reconciliation, double-commit, revert, isolation), 3 new E2E flows × 2 viewports.
+
 ## Phase 1 — Core CRUD (2026-11-01)
 
 - **Accounts**: create/edit/archive/delete (delete only when empty), SQL-computed balances, credit cards entered as an "outstanding" amount, seeded Cash account.

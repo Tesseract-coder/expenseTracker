@@ -1,0 +1,64 @@
+{
+  "profile": "axis_savings_v1",
+  "mapping": {
+    "headerRow": 4,
+    "dateCol": 0,
+    "valueDateCol": null,
+    "narrationCols": [2],
+    "refCol": 1,
+    "balanceCol": 5,
+    "amount": {
+      "kind": "debit_credit",
+      "debitCol": 3,
+      "creditCol": 4
+    },
+    "dateOrder": "dmy"
+  },
+  "rows": [
+    {
+      "txnDate": "2026-10-02",
+      "valueDate": null,
+      "narration": "UPI/P2M/427598765432/BLINKIT/Paytm Payments",
+      "refNo": null,
+      "amountPaise": 123400,
+      "direction": "out",
+      "balancePaise": 4876600,
+      "sourceRow": 7
+    },
+    {
+      "txnDate": "2026-10-03",
+      "valueDate": null,
+      "narration": "UPI/P2A/427512340000/MOM/HDFC/mom@okhdfcbank/gift",
+      "refNo": null,
+      "amountPaise": 500000,
+      "direction": "in",
+      "balancePaise": 5376600,
+      "sourceRow": 8
+    },
+    {
+      "txnDate": "2026-10-08",
+      "valueDate": null,
+      "narration": "ECOM PUR/TATA POWER DDL/081026",
+      "refNo": null,
+      "amountPaise": 215000,
+      "direction": "out",
+      "balancePaise": 5161600,
+      "sourceRow": 10
+    },
+    {
+      "txnDate": "2026-10-12",
+      "valueDate": null,
+      "narration": "CHQ PAID-MICR CLG-SOCIETY MAINTENANCE",
+      "refNo": "000045",
+      "amountPaise": 350000,
+      "direction": "out",
+      "balancePaise": 4811600,
+      "sourceRow": 11
+    }
+  ],
+  "errors": [],
+  "skipped": 2,
+  "from": "2026-10-02",
+  "to": "2026-10-12",
+  "closingBalancePaise": 4811600
+}

@@ -8,6 +8,7 @@ import { requestLogger } from './middleware/requestLogger';
 import { accountRoutes } from './routes/accounts';
 import { categoryRoutes } from './routes/categories';
 import { healthRoutes } from './routes/health';
+import { importRoutes, parserProfileRoutes } from './routes/imports';
 import { meRoutes } from './routes/me';
 import {
   counterpartyRoutes,
@@ -44,7 +45,9 @@ export function createApp(deps: AppDeps = {}) {
     .route('/transactions', transactionRoutes)
     .route('/tags', tagRoutes)
     .route('/counterparties', counterpartyRoutes)
-    .route('/undo', undoRoutes);
+    .route('/undo', undoRoutes)
+    .route('/imports', importRoutes)
+    .route('/parser-profiles', parserProfileRoutes);
 
   api.onError(errorHandler);
 

@@ -235,6 +235,7 @@ export async function listTransactions(db: Db, userId: string, rawQuery: Transac
 
   if (q.accountIds?.length) conds.push(inJson(t.accountId, q.accountIds));
   if (q.direction) conds.push(eq(t.direction, q.direction));
+  if (q.importId) conds.push(eq(t.importId, q.importId));
   if (q.from) conds.push(sql`${t.txnDate} >= ${q.from}`);
   if (q.to) conds.push(sql`${t.txnDate} <= ${q.to}`);
   if (q.uncategorized) conds.push(eq(t.categoryId, await getUncategorizedId(db, userId)));

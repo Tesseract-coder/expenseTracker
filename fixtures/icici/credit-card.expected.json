@@ -1,0 +1,65 @@
+{
+  "profile": "icici_cc_v1",
+  "mapping": {
+    "headerRow": 4,
+    "dateCol": 0,
+    "valueDateCol": null,
+    "narrationCols": [2],
+    "refCol": 1,
+    "balanceCol": null,
+    "amount": {
+      "kind": "amount_with_type",
+      "amountCol": 5,
+      "typeCol": 6,
+      "defaultDirection": "out"
+    },
+    "dateOrder": "dmy"
+  },
+  "rows": [
+    {
+      "txnDate": "2026-10-01",
+      "valueDate": null,
+      "narration": "ZOMATO GURGAON IN",
+      "refNo": "1001",
+      "amountPaise": 45600,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 6
+    },
+    {
+      "txnDate": "2026-10-02",
+      "valueDate": null,
+      "narration": "IRCTC WEB NEW DELHI IN",
+      "refNo": "1002",
+      "amountPaise": 182050,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 7
+    },
+    {
+      "txnDate": "2026-10-05",
+      "valueDate": null,
+      "narration": "BBPS PAYMENT RECEIVED",
+      "refNo": "1003",
+      "amountPaise": 1200000,
+      "direction": "in",
+      "balancePaise": null,
+      "sourceRow": 8
+    },
+    {
+      "txnDate": "2026-10-06",
+      "valueDate": null,
+      "narration": "UBER INDIA SYSTEMS PVT BANGALORE IN",
+      "refNo": "1004",
+      "amountPaise": 31200,
+      "direction": "out",
+      "balancePaise": null,
+      "sourceRow": 9
+    }
+  ],
+  "errors": [],
+  "skipped": 0,
+  "from": "2026-10-01",
+  "to": "2026-10-06",
+  "closingBalancePaise": null
+}
