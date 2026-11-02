@@ -3,7 +3,6 @@ import {
   IMPORT_FILE_EXTENSIONS,
   MAX_IMPORT_FILE_BYTES,
   addDays,
-  type DupCandidate,
   fingerprintAll,
   createNearDuplicateMatcher,
   findTransferPairs,
@@ -60,6 +59,10 @@ interface StoredRowExtra {
   cat: CategorizeResult | null;
 }
 
+/** Imports from alerts (SMS paste, e-mail) carry rebuilt narrations, not bank ones. */
+const ALERT_SOURCES = new Set(['sms', 'email']);
+const TXN_SOURCE = { file: 'import', sms: 'sms', email: 'email' } as const;
+
 interface StoredPreview {
   version: 2;
   accountId: string;
@@ -71,6 +74,7 @@ function toDto(r: ImportRow): ImportDto {
   return {
     id: r.id,
     accountId: r.accountId,
+    source: r.source,
     fileName: r.fileName,
     fileSize: r.fileSize,
     parserProfileId: r.parserProfileId,
@@ -101,7 +105,13 @@ export async function listImports(db: Db, userId: string): Promise<ImportDto[]> 
   const rows = await db
     .select()
     .from(imports)
-    .where(eq(imports.userId, userId))
+    // SMS checks that were never added aren't history.
+    .where(
+      and(
+        eq(imports.userId, userId),
+        sql`not (${imports.source} != 'file' and ${imports.status} in ('uploaded', 'previewed'))`,
+      ),
+    )
     .orderBy(desc(imports.createdAt))
     .limit(200);
   return rows.map(toDto);
@@ -167,6 +177,26 @@ export async function uploadStatement(
   };
 }
 
+/** An import without a file: one per account for pasted SMS or a forwarded e-mail alert. */
+export async function createAlertImport(
+  db: Db,
+  userId: string,
+  accountId: string,
+  source: 'sms' | 'email',
+): Promise<string> {
+  await getAccount(db, userId, accountId);
+  const id = newId();
+  await db.insert(imports).values({
+    id,
+    userId,
+    accountId,
+    source,
+    fileName: source === 'sms' ? 'Pasted SMS alerts' : 'E-mail alert',
+    status: 'uploaded',
+  });
+  return id;
+}
+
 // ---------------------------------------------------------------------------- preview
 
 export async function previewImport(
@@ -211,6 +241,7 @@ export async function previewImport(
       note: transactions.note,
       refNo: transactions.refNo,
       transferGroupId: transactions.transferGroupId,
+      source: transactions.source,
     })
     .from(transactions)
     .innerJoin(accounts, eq(accounts.id, transactions.accountId))
@@ -220,8 +251,14 @@ export async function previewImport(
 
   // Match on the bank narration only: a manual entry's free-text note is not comparable with a
   // bank narration, so manual rows (narration null) match on amount + date ('no_narration').
+  // Alert rows (SMS/e-mail) have rebuilt narrations, so they compare as "no narration" both ways.
+  // Exclusive: each existing transaction absorbs at most one incoming row.
+  const fromAlerts = ALERT_SOURCES.has(imp.source);
   const matchNearDuplicate = createNearDuplicateMatcher(
-    windowRows.filter((w) => w.accountId === account.id) satisfies DupCandidate[],
+    windowRows
+      .filter((w) => w.accountId === account.id)
+      .map((w) => ({ ...w, narration: ALERT_SOURCES.has(w.source) ? null : w.narration })),
+    { exclusive: true },
   );
 
   const blank = {
@@ -246,7 +283,11 @@ export async function previewImport(
         match: null,
         transfer: null,
       };
-    const near = matchNearDuplicate({ id: `new:${index}`, ...r });
+    const near = matchNearDuplicate({
+      id: `new:${index}`,
+      ...r,
+      narration: fromAlerts ? null : r.narration,
+    });
     const matched = near ? windowRows.find((w) => w.id === near.id) : undefined;
     return {
       ...r,
@@ -262,6 +303,7 @@ export async function previewImport(
               amountPaise: matched.amountPaise,
               narration: matched.narration ?? matched.note,
               reason: near.reason,
+              source: matched.source,
             }
           : null,
       transfer: null,
@@ -487,9 +529,26 @@ const INSERT_SQL = `insert or ignore into transactions (
     (select r.id from rules r where r.user_id = ?1 and r.id = json_extract(value, '$.ruleId')),
     (select l.id from learned_labels l where l.user_id = ?1 and l.id = json_extract(value, '$.learnedLabelId')),
     json_extract(value, '$.confidence'), json_extract(value, '$.reason'), 0, json_extract(value, '$.note'),
-    'confirmed', 'import', json_extract(value, '$.fingerprint'), ?3, json_extract(value, '$.groupId'), 0,
+    ?6, ?7, json_extract(value, '$.fingerprint'), ?3, json_extract(value, '$.groupId'), 0,
     json_extract(value, '$.balancePaise'), ?4, ?4
   from json_each(?5)`;
+
+/**
+ * A statement row that matched an SMS/e-mail entry replaces the alert's rebuilt details with the
+ * bank's own (narration, ref, balance) and confirms it. The category is kept.
+ */
+const ENRICH_ALERTS_SQL = `update transactions set
+    raw_narration = j.narration, channel = j.channel, vpa = coalesce(j.vpa, transactions.vpa),
+    ifsc_prefix = coalesce(j.ifsc, transactions.ifsc_prefix), ref_no = coalesce(j.ref, transactions.ref_no),
+    balance_after_paise = coalesce(j.balance, transactions.balance_after_paise),
+    counterparty_id = coalesce(transactions.counterparty_id, ${COUNTERPARTY_ID_BY_KEY('j.cpKey', '?2')}),
+    status = 'confirmed', updated_at = ?3
+  from (select json_extract(value, '$.id') as id, json_extract(value, '$.narration') as narration,
+          json_extract(value, '$.channel') as channel, json_extract(value, '$.vpa') as vpa,
+          json_extract(value, '$.ifscPrefix') as ifsc, json_extract(value, '$.refNo') as ref,
+          json_extract(value, '$.balancePaise') as balance, json_extract(value, '$.cpKey') as cpKey
+        from json_each(?1)) as j
+  where transactions.id = j.id and transactions.user_id = ?2 and transactions.source in ('sms', 'email')`;
 
 /** Rule-assigned tags for inserted rows; skips rows that collided at insert and deleted tags. */
 const INSERT_RULE_TAGS_SQL = `insert or ignore into transaction_tags (transaction_id, tag_id)
@@ -526,6 +585,10 @@ export async function commitImport(
     if (preview.version !== 2) {
       throw conflict('preview_missing', 'This preview is out of date; preview the statement again');
     }
+    const imp = await getImportRow(db, userId, importId);
+    const txnSource = TXN_SOURCE[imp.source];
+    // Forwarded e-mails arrive unattended, so they wait in "Needs review" until confirmed.
+    const txnStatus = imp.source === 'email' ? 'needs_review' : 'confirmed';
 
     const includeNear = new Set(decisions.includeNearDuplicates);
     const acceptTransfers = new Set(decisions.acceptTransfers);
@@ -542,7 +605,35 @@ export async function commitImport(
     const applied: (CategorizeResult | null)[] = [];
     const toInsert: Record<string, unknown>[] = [];
     const cashLegs: Record<string, unknown>[] = [];
+    const enrich: Record<string, unknown>[] = [];
     for (const r of preview.rows) {
+      if (
+        imp.source === 'file' &&
+        r.status === 'near_duplicate' &&
+        !includeNear.has(r.index) &&
+        r.match?.source &&
+        ALERT_SOURCES.has(r.match.source)
+      ) {
+        enrich.push({
+          id: r.match.txnId,
+          narration: r.narration,
+          channel: r.channel,
+          vpa: r.vpa,
+          ifscPrefix: r.ifscPrefix,
+          refNo: r.refNo ?? r.narrationRef,
+          balancePaise: r.balancePaise,
+          cpKey: r.cpKey,
+        });
+        if (r.cpKey && r.payee) {
+          counterpartiesToUpsert.set(r.cpKey, {
+            id: newId(),
+            key: r.cpKey,
+            name: r.payee,
+            vpa: r.vpa,
+          });
+        }
+        continue;
+      }
       if (!(r.status === 'new' || (r.status === 'near_duplicate' && includeNear.has(r.index))))
         continue;
       const transfer = r.transfer && acceptTransfers.has(r.index) ? r.transfer : null;
@@ -634,6 +725,8 @@ export async function commitImport(
           importId,
           now,
           JSON.stringify(toInsert.slice(i, i + INSERT_CHUNK)),
+          txnStatus,
+          txnSource,
         ),
       );
     }
@@ -646,6 +739,8 @@ export async function commitImport(
           importId,
           now,
           JSON.stringify(cashLegs.slice(i, i + INSERT_CHUNK)),
+          txnStatus,
+          txnSource,
         ),
       );
     }
@@ -667,6 +762,10 @@ export async function commitImport(
              and transaction_id in (select json_extract(value, '$.id') from json_each(?1))`,
         ).bind(JSON.stringify(counterpartUpdates), userId),
       );
+    }
+    const enrichAt = stmts.length;
+    if (enrich.length) {
+      stmts.push(env.DB.prepare(ENRICH_ALERTS_SQL).bind(JSON.stringify(enrich), userId, now));
     }
     if (tagLinks.length) {
       stmts.push(
@@ -702,6 +801,7 @@ export async function commitImport(
         preview.rows.filter((r) => r.status === 'duplicate').length + (toInsert.length - inserted),
       transfersLinked,
       categorized: applied.length,
+      alertsConfirmed: enrich.length ? (results[enrichAt]?.meta.changes ?? 0) : 0,
     };
   } catch (err) {
     await db

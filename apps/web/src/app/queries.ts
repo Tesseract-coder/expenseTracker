@@ -68,6 +68,12 @@ import {
   trendsResponseSchema,
   whenResponseSchema,
   whereResponseSchema,
+  type AlertsCommitRequest,
+  type AlertsPreviewRequest,
+  alertsCommitResponseSchema,
+  alertsPreviewResponseSchema,
+  aiSuggestResponseSchema,
+  confirmTransactionsResponseSchema,
 } from '@kharcha/shared';
 import { z } from 'zod';
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut, apiUpload } from '@/lib/api';
@@ -367,12 +373,50 @@ export const useInbox = (limit = 30) =>
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 
-export const useInboxCount = () =>
-  useQuery({
-    queryKey: [...queryKeys.inbox, 'count'],
-    queryFn: () => apiGet('/inbox/count', inboxCountResponseSchema),
-    select: (d) => d.count,
+const inboxCountQuery = {
+  queryKey: [...queryKeys.inbox, 'count'],
+  queryFn: () => apiGet('/inbox/count', inboxCountResponseSchema),
+};
+export const useInboxCount = () => useQuery({ ...inboxCountQuery, select: (d) => d.count });
+/** Transactions waiting in "Needs review" (forwarded e-mail alerts). */
+export const useReviewCount = () => useQuery({ ...inboxCountQuery, select: (d) => d.review });
+
+export function useConfirmTransactions() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (ids: string[]) =>
+      apiPost('/transactions/confirm', { ids }, confirmTransactionsResponseSchema),
+    onSuccess: () => invalidate(...TXN_KEYS),
   });
+}
+
+// ---------------------------------------------------------------------------- SMS alerts & AI
+
+export function usePreviewAlerts() {
+  return useMutation({
+    mutationFn: (body: AlertsPreviewRequest) =>
+      apiPost('/alerts/preview', body, alertsPreviewResponseSchema),
+  });
+}
+
+export function useCommitAlerts() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (body: AlertsCommitRequest) =>
+      apiPost('/alerts/commit', body, alertsCommitResponseSchema),
+    onSuccess: () => invalidate(...TXN_KEYS, queryKeys.imports),
+  });
+}
+
+/** Workers AI suggestions for up to 20 uncategorized transactions (flag-gated on the server). */
+export function useAiSuggest() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (transactionIds: string[]) =>
+      apiPost('/categorization/ai-suggest', { transactionIds }, aiSuggestResponseSchema),
+    onSuccess: () => invalidate(...CATEGORY_KEYS),
+  });
+}
 
 export const useLabelImpact = (
   txnId: string | null,

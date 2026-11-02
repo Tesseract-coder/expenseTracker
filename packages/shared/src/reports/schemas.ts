@@ -223,6 +223,8 @@ export const settingsDtoSchema = z.object({
   yearMode: yearModeSchema,
   targets: targetsSchema,
   emergencyFundPaise: z.number().int().min(0).nullable(),
+  /** Apply AI suggestions at or above AI_AUTO_APPLY_MIN confidence (only when AI is enabled). */
+  aiAutoApply: z.boolean().default(false),
 });
 export type SettingsDto = z.infer<typeof settingsDtoSchema>;
 
@@ -231,6 +233,7 @@ export const settingsPatchSchema = z
     yearMode: yearModeSchema,
     targets: targetsSchema.partial(),
     emergencyFundPaise: z.number().int().min(0).max(1_000_00_00_000_00).nullable(),
+    aiAutoApply: z.boolean(),
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, 'Nothing to update');
@@ -240,6 +243,7 @@ export const DEFAULT_SETTINGS_DTO: SettingsDto = {
   yearMode: 'calendar',
   targets: DEFAULT_TARGETS,
   emergencyFundPaise: null,
+  aiAutoApply: false,
 };
 
 // ---------------------------------------------------------------------------- health

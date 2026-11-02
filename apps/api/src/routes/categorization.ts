@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import {
+  aiSuggestRequestSchema,
   categorizationRunRequestSchema,
   inboxQuerySchema,
   learnedLabelUpdateSchema,
@@ -13,7 +14,9 @@ import type { AppEnv } from '../env';
 import { getDb } from '../db/client';
 import { zv } from '../lib/validate';
 import { isContinuation, rateLimit } from '../middleware/rateLimit';
+import { suggestCategories } from '../services/ai';
 import { runCategorizationChunk } from '../services/categorization';
+import { reviewCount } from '../services/transactions';
 import { getInbox, inboxCount } from '../services/labels';
 import {
   deleteLearnedLabel,
@@ -35,27 +38,34 @@ export const inboxRoutes = new Hono<AppEnv>()
   .get('/', zv('query', inboxQuerySchema), async (c) =>
     c.json(await getInbox(getDb(c.env.DB), c.get('user').id, c.req.query())),
   )
-  .get('/count', async (c) =>
-    c.json({ count: await inboxCount(getDb(c.env.DB), c.get('user').id) }),
-  );
+  .get('/count', async (c) => {
+    const db = getDb(c.env.DB);
+    const userId = c.get('user').id;
+    const [count, review] = await Promise.all([inboxCount(db, userId), reviewCount(db, userId)]);
+    return c.json({ count, review });
+  });
 
-export const categorizationRoutes = new Hono<AppEnv>().post(
-  '/run',
-  rateLimit('bulk', { skip: isContinuation }),
-  zv('json', categorizationRunRequestSchema),
-  async (c) => {
-    const body = c.req.valid('json');
-    return c.json(
-      await runCategorizationChunk(
-        getDb(c.env.DB),
-        c.env.DB,
-        c.get('user').id,
-        { kind: body.scope },
-        body,
-      ),
-    );
-  },
-);
+export const categorizationRoutes = new Hono<AppEnv>()
+  .post('/ai-suggest', rateLimit('ai'), zv('json', aiSuggestRequestSchema), async (c) =>
+    c.json(await suggestCategories(c.env, c.get('user').id, c.req.valid('json').transactionIds)),
+  )
+  .post(
+    '/run',
+    rateLimit('bulk', { skip: isContinuation }),
+    zv('json', categorizationRunRequestSchema),
+    async (c) => {
+      const body = c.req.valid('json');
+      return c.json(
+        await runCategorizationChunk(
+          getDb(c.env.DB),
+          c.env.DB,
+          c.get('user').id,
+          { kind: body.scope },
+          body,
+        ),
+      );
+    },
+  );
 
 export const ruleRoutes = new Hono<AppEnv>()
   .get('/', async (c) => c.json({ rules: await listRules(getDb(c.env.DB), c.get('user').id) }))

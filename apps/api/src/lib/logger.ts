@@ -14,6 +14,11 @@ export interface LogFields {
   users?: number;
   series?: number;
   prunedAudit?: number;
+  /** Alert ingestion / AI counters. */
+  alerts?: number;
+  inserted?: number;
+  unmatched?: number;
+  suggested?: number;
 }
 
 type Level = 'info' | 'warn' | 'error';

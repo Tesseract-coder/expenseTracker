@@ -3,7 +3,14 @@ import { toast } from 'sonner';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { periodRange, toIstDate, previousPeriodRange } from '@kharcha/shared';
-import { useAccounts, useCategoryMap, useTags, useTransactions } from '@/app/queries';
+import {
+  useAccounts,
+  useCategoryMap,
+  useConfirmTransactions,
+  useReviewCount,
+  useTags,
+  useTransactions,
+} from '@/app/queries';
 import { EmptyState } from '@/components/EmptyState';
 import { Money } from '@/components/Money';
 import { Button } from '@/components/ui/button';
@@ -70,6 +77,8 @@ export function TransactionsPage() {
 
   const list = useTransactions(filters);
   const accounts = useAccounts();
+  const reviewCount = useReviewCount();
+  const confirm = useConfirmTransactions();
   const { byId: categoriesById } = useCategoryMap();
   const accountsById = useMemo(
     () => new Map((accounts.data ?? []).map((a) => [a.id, a])),
@@ -127,6 +136,14 @@ export function TransactionsPage() {
         >
           Uncategorized
         </Chip>
+        {(!!reviewCount.data || filters.status) && (
+          <Chip
+            selected={filters.status === 'needs_review'}
+            onClick={() => setFilter('status', filters.status ? undefined : 'needs_review')}
+          >
+            Needs review{reviewCount.data ? ` (${reviewCount.data})` : ''}
+          </Chip>
+        )}
         {activeCount > 0 && (
           <Chip onClick={clearAll} aria-label="Clear filters">
             <X aria-hidden className="size-4" /> Clear
@@ -143,6 +160,32 @@ export function TransactionsPage() {
           <Download aria-hidden className="size-4" /> Export
         </Chip>
       </div>
+
+      {filters.status === 'needs_review' && rows.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-lg bg-accent p-3 text-sm text-accent-foreground">
+          <p>
+            These came from forwarded e-mail alerts. Check the amounts and accounts, delete anything
+            wrong, then confirm.
+          </p>
+          <Button
+            disabled={confirm.isPending}
+            onClick={() =>
+              confirm.mutate(
+                rows.slice(0, 100).map((r) => r.id),
+                {
+                  onSuccess: (r) =>
+                    toast.success(
+                      `Confirmed ${r.confirmed} transaction${r.confirmed === 1 ? '' : 's'}`,
+                    ),
+                  onError: (e) => toast.error(errorMessage(e)),
+                },
+              )
+            }
+          >
+            Confirm {Math.min(rows.length, 100)} shown
+          </Button>
+        </div>
+      )}
 
       {list.isPending ? (
         <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading transactions">

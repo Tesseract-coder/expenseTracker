@@ -39,6 +39,7 @@ export function TransactionRow({
   const category = txn.categoryId ? categoriesById.get(txn.categoryId) : undefined;
   const uncategorized = category?.systemKey === 'uncategorized';
   const subtitle = [
+    txn.status === 'needs_review' ? 'Needs review' : null,
     txn.isSplit ? `Split · ${txn.splits.length} parts` : (category?.name ?? 'Uncategorized'),
     accountsById.get(txn.accountId)?.name,
   ]

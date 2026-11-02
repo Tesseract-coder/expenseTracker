@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { directionSchema } from '../schemas/enums';
+import { directionSchema, txnSourceSchema } from '../schemas/enums';
 import {
   idSchema,
   isoDateSchema,
@@ -48,6 +48,8 @@ export const previewRowSchema = parsedRowSchema.extend({
       amountPaise: z.number().int(),
       narration: z.string().nullable(),
       reason: z.enum(['same_ref', 'similar_narration', 'no_narration']),
+      /** `sms`/`email`: a statement row confirms and enriches the alert entry instead of being added. */
+      source: txnSourceSchema.nullable().default(null),
     })
     .nullable(),
   transfer: z
@@ -108,6 +110,8 @@ export const importCommitResponseSchema = z.object({
   transfersLinked: z.number().int(),
   /** Inserted rows the engine categorized (rule / learned / keyword). */
   categorized: z.number().int(),
+  /** SMS/e-mail entries that matched a statement row and were confirmed with its details. */
+  alertsConfirmed: z.number().int().default(0),
 });
 
 export const importUploadResponseSchema = z.object({
@@ -124,6 +128,7 @@ export const importUploadResponseSchema = z.object({
 export const importDtoSchema = z.object({
   id: z.string(),
   accountId: z.string(),
+  source: z.enum(['file', 'sms', 'email']).default('file'),
   fileName: z.string().nullable(),
   fileSize: z.number().int().nullable(),
   parserProfileId: z.string().nullable(),

@@ -257,6 +257,8 @@ export const transactions = sqliteTable(
     aiSuggestedCategoryId: text('ai_suggested_category_id').references(() => categories.id, {
       onDelete: 'set null',
     }),
+    /** Model confidence (0–1) for ai_suggested_category_id; set with it, cleared on labelling. */
+    aiConfidence: real('ai_confidence'),
     isSplit: integer('is_split').notNull().default(0),
     note: text('note'),
     status: text('status', { enum: TXN_STATUSES }).notNull().default('confirmed'),

@@ -116,6 +116,11 @@ export const transactionDtoSchema = z.object({
   isReimbursable: z.boolean(),
   reimbursedByTxnId: z.string().nullable(),
   transferGroupId: z.string().nullable(),
+  /** Workers AI suggestion (flag-gated); never applied unless accepted or auto-apply is on. */
+  aiSuggestion: z
+    .object({ categoryId: z.string(), confidence: z.number().nullable() })
+    .nullable()
+    .default(null),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
 });
@@ -148,6 +153,8 @@ export const transactionListQuerySchema = z.object({
   /** Searches narration, note and counterparty name; numeric queries also match the exact amount. */
   q: z.string().trim().max(100).optional(),
   importId: idSchema.optional(),
+  /** `needs_review`: e-mail alerts waiting to be confirmed. */
+  status: txnStatusSchema.optional(),
   uncategorized: z
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
@@ -162,6 +169,10 @@ export const transactionListResponseSchema = z.object({
 export type TransactionListResponse = z.infer<typeof transactionListResponseSchema>;
 
 export const deleteResponseSchema = z.object({ undoToken: z.string() });
+
+/** Confirm transactions waiting in "Needs review" (e-mail alerts). */
+export const confirmTransactionsSchema = z.object({ ids: z.array(idSchema).min(1).max(100) });
+export const confirmTransactionsResponseSchema = z.object({ confirmed: z.number().int() });
 export const undoResponseSchema = z.object({ restored: z.number().int() });
 
 export const tagDtoSchema = z.object({ id: z.string(), name: z.string(), count: z.number().int() });

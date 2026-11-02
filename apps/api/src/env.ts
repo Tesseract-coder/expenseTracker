@@ -12,6 +12,12 @@ export interface Env {
   ALLOWED_EMAILS?: string;
   ASYNC_MODE: 'inline' | 'queue';
   AI_ENABLED: string;
+  /** Workers AI binding (optional; only used when AI_ENABLED = "true"). */
+  AI?: Ai;
+  /** Workers AI model id override (default in services/ai.ts). */
+  AI_MODEL?: string;
+  /** Comma-separated envelope senders allowed to forward alert e-mails (secret). Empty = off. */
+  ALERT_SENDERS?: string;
 }
 
 export interface AuthUser {

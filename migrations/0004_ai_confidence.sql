@@ -1,0 +1,1 @@
+ALTER TABLE `transactions` ADD `ai_confidence` real;

@@ -82,7 +82,11 @@ export const inboxResponseSchema = z.object({
 });
 export type InboxResponse = z.infer<typeof inboxResponseSchema>;
 
-export const inboxCountResponseSchema = z.object({ count: z.number().int() });
+export const inboxCountResponseSchema = z.object({
+  count: z.number().int(),
+  /** Transactions in "Needs review" (from forwarded e-mail alerts). */
+  review: z.number().int().default(0),
+});
 
 // ---------------------------------------------------------------------------- re-run categorization
 

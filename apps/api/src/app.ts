@@ -6,6 +6,7 @@ import { accessAuth, type JwksProvider } from './middleware/accessAuth';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { accountRoutes } from './routes/accounts';
+import { alertRoutes } from './routes/alerts';
 import { categoryRoutes } from './routes/categories';
 import {
   categorizationRoutes,
@@ -61,6 +62,7 @@ export function createApp(deps: AppDeps = {}) {
     .route('/undo', undoRoutes)
     .route('/imports', importRoutes)
     .route('/parser-profiles', parserProfileRoutes)
+    .route('/alerts', alertRoutes)
     .route('/inbox', inboxRoutes)
     .route('/categorization', categorizationRoutes)
     .route('/rules', ruleRoutes)

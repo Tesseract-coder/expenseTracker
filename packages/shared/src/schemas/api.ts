@@ -22,5 +22,14 @@ export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export const meResponseSchema = z.object({
   id: z.string(),
   email: z.email(),
+  /** Server-side feature flags the UI adapts to. */
+  features: z
+    .object({
+      /** Workers AI category suggestions (AI_ENABLED + AI binding). */
+      ai: z.boolean(),
+      /** Forwarded alert e-mails accepted (ALERT_SENDERS configured). */
+      emailAlerts: z.boolean(),
+    })
+    .default({ ai: false, emailAlerts: false }),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;

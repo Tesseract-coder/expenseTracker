@@ -384,7 +384,7 @@ describe('inbox', () => {
     const ramesh = inbox.transactions.find((t) => t.amountPaise === 30002)!;
     expect(inbox.suggestions[ramesh.id]?.[0]).toBe(ids.medical);
     expect(inbox.suggestions[ramesh.id]).toHaveLength(4);
-    expect((await getJson('/api/inbox/count')).body).toEqual({ count: 2 });
+    expect((await getJson('/api/inbox/count')).body).toEqual({ count: 2, review: 0 });
   });
 });
 

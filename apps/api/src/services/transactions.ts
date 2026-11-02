@@ -217,6 +217,9 @@ async function toDtos(
     isReimbursable: t.isReimbursable === 1,
     reimbursedByTxnId: t.reimbursedByTxnId,
     transferGroupId: t.transferGroupId,
+    aiSuggestion: t.aiSuggestedCategoryId
+      ? { categoryId: t.aiSuggestedCategoryId, confidence: t.aiConfidence }
+      : null,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }));
@@ -251,6 +254,7 @@ export async function transactionFilterConds(
   if (q.accountIds?.length) conds.push(inJson(t.accountId, q.accountIds));
   if (q.direction) conds.push(eq(t.direction, q.direction));
   if (q.importId) conds.push(eq(t.importId, q.importId));
+  if (q.status) conds.push(eq(t.status, q.status));
   if (q.from) conds.push(sql`${t.txnDate} >= ${q.from}`);
   if (q.to) conds.push(sql`${t.txnDate} <= ${q.to}`);
   if (q.uncategorized) conds.push(eq(t.categoryId, await getUncategorizedId(db, userId)));
@@ -643,4 +647,29 @@ export async function searchCounterparties(
     .orderBy(desc(counterparties.txnCount), counterparties.displayName)
     .limit(limit);
   return rows;
+}
+
+/** Moves "Needs review" transactions (e-mail alerts) to confirmed. Already-confirmed ids are ignored. */
+export async function confirmTransactions(
+  d1: D1Database,
+  userId: string,
+  ids: string[],
+): Promise<number> {
+  const r = await d1
+    .prepare(
+      `update transactions set status = 'confirmed', updated_at = ?3
+       where user_id = ?1 and status = 'needs_review' and id in (select value from json_each(?2))`,
+    )
+    .bind(userId, JSON.stringify(ids), Date.now())
+    .run();
+  return r.meta.changes ?? 0;
+}
+
+export async function reviewCount(db: Db, userId: string): Promise<number> {
+  const row = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(transactions)
+    .where(and(eq(transactions.userId, userId), eq(transactions.status, 'needs_review')))
+    .get();
+  return Number(row?.n ?? 0);
 }

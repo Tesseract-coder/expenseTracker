@@ -1,0 +1,118 @@
+{
+  "alerts": [
+    {
+      "index": 0,
+      "raw": "Sent Rs.420.00 From HDFC Bank A/C *1234 To SWIGGY On 01/11/26 Ref 430512340001 Not You? Call 18002586161/SMS BLOCK UPI to 7308080808",
+      "amountPaise": 42000,
+      "direction": "out",
+      "txnDate": "2026-11-01",
+      "dateFromText": true,
+      "last4": "1234",
+      "bank": "hdfc",
+      "cardHint": null,
+      "channel": "upi",
+      "vpa": null,
+      "payee": "SWIGGY",
+      "refNo": "430512340001",
+      "balancePaise": null,
+      "narration": "UPI/DR/430512340001/SWIGGY"
+    },
+    {
+      "index": 1,
+      "raw": "Spent Rs.1,299.00 On HDFC Bank Card 5678 At AMAZON PAY IN On 2026-11-01:10:15:22.Not You? To Block+Reissue Call 18002586161/SMS BLOCK CC 5678 to 7308080808",
+      "amountPaise": 129900,
+      "direction": "out",
+      "txnDate": "2026-11-01",
+      "dateFromText": true,
+      "last4": "5678",
+      "bank": "hdfc",
+      "cardHint": "credit",
+      "channel": "card",
+      "vpa": null,
+      "payee": "AMAZON PAY IN",
+      "refNo": null,
+      "balancePaise": null,
+      "narration": "POS AMAZON PAY IN"
+    },
+    {
+      "index": 3,
+      "raw": "Update! INR 85,000.00 deposited in HDFC Bank A/c XX1234 on 31-OCT-26 for NEFT Cr-HDFC0000123-ACME TECH PVT LTD-SALARY OCT.Avl bal INR 1,23,456.78. Cheque deposits in A/C are subject to clearing",
+      "amountPaise": 8500000,
+      "direction": "in",
+      "txnDate": "2026-10-31",
+      "dateFromText": true,
+      "last4": "1234",
+      "bank": "hdfc",
+      "cardHint": null,
+      "channel": "neft",
+      "vpa": null,
+      "payee": null,
+      "refNo": null,
+      "balancePaise": 12345678,
+      "narration": "NEFT Cr-HDFC0000123-ACME TECH PVT LTD-SALARY OCT"
+    },
+    {
+      "index": 4,
+      "raw": "ICICI Bank Acct XX123 debited for Rs 250.00 on 01-Nov-26; ZOMATO LTD credited. UPI:430598765432. Call 18002662 for dispute. SMS BLOCK 123 to 9215676766.",
+      "amountPaise": 25000,
+      "direction": "out",
+      "txnDate": "2026-11-01",
+      "dateFromText": true,
+      "last4": "123",
+      "bank": "icici",
+      "cardHint": null,
+      "channel": "upi",
+      "vpa": null,
+      "payee": "ZOMATO LTD",
+      "refNo": "430598765432",
+      "balancePaise": null,
+      "narration": "UPI/DR/430598765432/ZOMATO LTD"
+    },
+    {
+      "index": 5,
+      "raw": "Dear Customer, Rs.2000 withdrawn at SBI ATM S1CN000123 from A/cX4321 on 01Nov26 Transaction Number 1234. Available Balance Rs.10,500.50. If not withdrawn by you, call 1800111109.",
+      "amountPaise": 200000,
+      "direction": "out",
+      "txnDate": "2026-11-01",
+      "dateFromText": true,
+      "last4": "4321",
+      "bank": "sbi",
+      "cardHint": null,
+      "channel": "atm",
+      "vpa": null,
+      "payee": null,
+      "refNo": null,
+      "balancePaise": 1050050,
+      "narration": "ATM WDL"
+    },
+    {
+      "index": 7,
+      "raw": "Received Rs.750.00 in your Kotak Bank AC X5566 from mom@okhdfcbank on 30-10-26.UPI Ref:430477778888.",
+      "amountPaise": 75000,
+      "direction": "in",
+      "txnDate": "2026-10-30",
+      "dateFromText": true,
+      "last4": "5566",
+      "bank": "kotak",
+      "cardHint": null,
+      "channel": "upi",
+      "vpa": "mom@okhdfcbank",
+      "payee": null,
+      "refNo": "430477778888",
+      "balancePaise": null,
+      "narration": "UPI/CR/430477778888/mom@okhdfcbank"
+    }
+  ],
+  "skipped": [
+    {
+      "index": 2,
+      "raw": "Your OTP for txn of Rs 2,499.00 at FLIPKART on HDFC Bank Card 5678 is 482913. Do not share. -HDFC Bank",
+      "reason": "otp"
+    },
+    {
+      "index": 6,
+      "raw": "Rs.649 will be debited from your A/c XX1234 on 05-11-26 for NETFLIX e-mandate. Ensure sufficient balance.",
+      "reason": "reminder"
+    }
+  ]
+}

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { type DupCandidate, findNearDuplicate, jaccard } from './nearDuplicate';
+import {
+  createNearDuplicateMatcher,
+  type DupCandidate,
+  findNearDuplicate,
+  jaccard,
+} from './nearDuplicate';
 
 const c = (id: string, o: Partial<DupCandidate> = {}): DupCandidate => ({
   id,
@@ -52,5 +57,38 @@ describe('findNearDuplicate', () => {
       c('strong', { refNo: 'R' }),
     ]);
     expect(r?.id).toBe('strong');
+  });
+});
+
+describe('createNearDuplicateMatcher exclusive', () => {
+  const existing = [
+    {
+      id: 'sms',
+      txnDate: '2026-10-01',
+      amountPaise: 50000,
+      direction: 'out' as const,
+      narration: null,
+      refNo: null,
+    },
+  ];
+  const row = (id: string) => ({
+    id,
+    txnDate: '2026-10-01',
+    amountPaise: 50000,
+    direction: 'out' as const,
+    narration: 'UPI/A',
+    refNo: null,
+  });
+
+  it('lets one existing transaction absorb only one incoming row', () => {
+    const m = createNearDuplicateMatcher(existing, { exclusive: true });
+    expect(m(row('a'))?.id).toBe('sms');
+    expect(m(row('b'))).toBeNull();
+  });
+
+  it('is shared by default (both rows flagged)', () => {
+    const m = createNearDuplicateMatcher(existing);
+    expect(m(row('a'))?.id).toBe('sms');
+    expect(m(row('b'))?.id).toBe('sms');
   });
 });

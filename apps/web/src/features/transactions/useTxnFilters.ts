@@ -21,6 +21,7 @@ export function useTxnFilters() {
       importId: get('importId'),
       to: get('to'),
       uncategorized: params.get('uncategorized') === 'true' ? 'true' : undefined,
+      status: params.get('status') === 'needs_review' ? 'needs_review' : undefined,
     };
   }, [params]);
 
@@ -49,6 +50,7 @@ export function useTxnFilters() {
     'from',
     'to',
     'uncategorized',
+    'status',
   ].filter((k) => params.has(k)).length;
 
   return { filters, params, setFilter, clearAll, activeCount };

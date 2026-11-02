@@ -87,7 +87,11 @@ export function findNearDuplicate(
  */
 export function createNearDuplicateMatcher(
   existing: DupCandidate[],
+  opts: { exclusive?: boolean } = {},
 ): (row: DupCandidate) => NearDupMatch | null {
+  // Exclusive: once an existing transaction is matched it can't absorb another row, so two
+  // same-amount payments in a statement don't both hide behind one SMS or manual entry.
+  const claimed = new Set<string>();
   const buckets = new Map<string, Prepared[]>();
   for (const e of existing) {
     const k = `${e.direction}:${e.amountPaise}`;
@@ -97,13 +101,21 @@ export function createNearDuplicateMatcher(
   }
   return (row) => {
     const candidates = buckets.get(`${row.direction}:${row.amountPaise}`);
-    return candidates ? bestMatch(prepare(row), candidates) : null;
+    if (!candidates) return null;
+    const match = bestMatch(prepare(row), candidates, opts.exclusive ? claimed : null);
+    if (match && opts.exclusive) claimed.add(match.id);
+    return match;
   };
 }
 
-function bestMatch(row: Prepared, candidates: Prepared[]): NearDupMatch | null {
+function bestMatch(
+  row: Prepared,
+  candidates: Prepared[],
+  claimed: Set<string> | null,
+): NearDupMatch | null {
   let best: NearDupMatch | null = null;
   for (const e of candidates) {
+    if (claimed?.has(e.c.id)) continue;
     const days = Math.abs(e.day - row.day);
     if (days > 2) continue;
     let match: NearDupMatch | null = null;

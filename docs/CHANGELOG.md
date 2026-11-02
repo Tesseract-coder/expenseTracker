@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 5 — Extra ingestion (2026-11-02)
+
+- **Paste bank SMS** (`/import/sms`): parsed in the browser (`packages/shared/src/alerts`, HDFC/ICICI/SBI/Axis/Kotak formats, golden fixture `fixtures/alerts/`). Skips OTPs, collect requests, reminders, failed txns and promos. Matches accounts by printed last digits, with a per-row account/date fix-up. Then it reuses the statement preview → commit pipeline (one `imports` row per account, `source = sms`): dedup, transfers, categorization, history, revert.
+- **E-mail alerts** (optional): Worker `email()` handler. `ALERT_SENDERS` allow-list (envelope sender), 256 KB cap, postal-mime parsing, HTML → text. Transactions land as `needs_review`, owned by the first `ALLOWED_EMAILS` user. Needs review shows as a Transactions filter with "Confirm shown"; saving such a transaction from the edit sheet also confirms it. `POST /api/transactions/confirm`.
+- **Statement ↔ alert matching**: SMS/e-mail rows compare as "no narration" for near-duplicates. A statement row that matches one confirms it and replaces its rebuilt details with the bank's (`alertsConfirmed`). Near-duplicate matching is now one-to-one (exclusive).
+- **Workers AI suggestions** (`AI_ENABLED` + `AI` binding, off by default): `POST /api/categorization/ai-suggest` (≤20 rows). The model picks from a numbered list of your categories; output is validated, and suggestions are stored as `ai_suggested_category_id` / `ai_confidence` (migration 0004). The inbox shows them as an "AI · %" chip plus an **Ask AI** action. An optional setting auto-applies suggestions at ≥90% (`categorized_by = ai`, undoable); a categorization re-run keeps AI categories when nothing else matches.
+- `/api/me` reports `features.ai` / `features.emailAlerts`.
+
 ## Phase 4 — Reports & health score (2026-11-02)
 
 - **Dashboard (Home)**:

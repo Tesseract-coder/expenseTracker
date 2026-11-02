@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import {
   bulkCategoryRequestSchema,
+  confirmTransactionsSchema,
   counterpartyMergeSchema,
   counterpartyUpdateSchema,
   labelImpactQuerySchema,
@@ -17,6 +18,7 @@ import { rateLimit } from '../middleware/rateLimit';
 import { mergeCounterparty, renameCounterparty } from '../services/counterparties';
 import { bulkCategorize, labelImpact, labelTransaction } from '../services/labels';
 import {
+  confirmTransactions,
   createTransaction,
   deleteTransaction,
   getTransaction,
@@ -57,6 +59,11 @@ export const transactionRoutes = new Hono<AppEnv>()
     const undoToken = await deleteTransaction(getDb(c.env.DB), c.get('user').id, c.req.param('id'));
     return c.json({ undoToken });
   })
+  .post('/confirm', rateLimit('bulk'), zv('json', confirmTransactionsSchema), async (c) =>
+    c.json({
+      confirmed: await confirmTransactions(c.env.DB, c.get('user').id, c.req.valid('json').ids),
+    }),
+  )
   .post('/bulk-category', rateLimit('bulk'), zv('json', bulkCategoryRequestSchema), async (c) =>
     c.json(await bulkCategorize(getDb(c.env.DB), c.env.DB, c.get('user').id, c.req.valid('json'))),
   )

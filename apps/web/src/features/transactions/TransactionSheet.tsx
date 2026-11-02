@@ -14,6 +14,7 @@ import {
   useCategoryMap,
   useCounterparties,
   useCreateTransaction,
+  useConfirmTransactions,
   useDeleteTransaction,
   useTags,
   useTransactions,
@@ -101,6 +102,7 @@ function TransactionForm({ txn, onDone }: { txn: TransactionDto | null; onDone: 
   const create = useCreateTransaction();
   const update = useUpdateTransaction();
   const remove = useDeleteTransaction();
+  const confirmReview = useConfirmTransactions();
   const undo = useUndo();
   const { openLabel } = useLabelSheet();
 
@@ -206,7 +208,11 @@ function TransactionForm({ txn, onDone }: { txn: TransactionDto | null; onDone: 
           id: txn.id,
           patch: { ...rest, ...(categoryChanged ? { categoryId: cat, splits: sp } : {}) },
         });
-        toast.success('Transaction updated');
+        // Saving a "Needs review" e-mail alert is the user's confirmation of it.
+        if (txn.status === 'needs_review') await confirmReview.mutateAsync([txn.id]);
+        toast.success(
+          txn.status === 'needs_review' ? 'Transaction confirmed' : 'Transaction updated',
+        );
         // Offer to remember the new category for this payee (spec §6.3).
         if (categoryChanged && !split && cat && saved.counterparty) {
           onDone();
@@ -568,7 +574,7 @@ function TransactionForm({ txn, onDone }: { txn: TransactionDto | null; onDone: 
           </Button>
         )}
         <Button type="submit" className="flex-1" disabled={create.isPending || update.isPending}>
-          {txn ? 'Save changes' : 'Save'}
+          {txn?.status === 'needs_review' ? 'Confirm' : txn ? 'Save changes' : 'Save'}
         </Button>
       </div>
 

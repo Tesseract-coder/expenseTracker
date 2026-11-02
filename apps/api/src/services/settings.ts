@@ -12,7 +12,7 @@ export async function getSettings(d1: D1Database, userId: string): Promise<Setti
   const { results } = await d1
     .prepare(
       `select key, value from settings where user_id = ?1
-       and key in ('year_mode', 'targets', 'emergency_fund_paise')`,
+       and key in ('year_mode', 'targets', 'emergency_fund_paise', 'ai_auto_apply')`,
     )
     .bind(userId)
     .all<{ key: string; value: string }>();
@@ -37,6 +37,7 @@ export async function getSettings(d1: D1Database, userId: string): Promise<Setti
     targets: targets.success ? targets.data : DEFAULT_SETTINGS_DTO.targets,
     emergencyFundPaise:
       typeof fund === 'number' && Number.isInteger(fund) && fund >= 0 ? fund : null,
+    aiAutoApply: raw.ai_auto_apply === true,
   };
 }
 
@@ -60,6 +61,7 @@ export async function updateSettings(
   if (patch.targets) stmts.push(upsert('targets', { ...current.targets, ...patch.targets }));
   if (patch.emergencyFundPaise !== undefined)
     stmts.push(upsert('emergency_fund_paise', patch.emergencyFundPaise));
+  if (patch.aiAutoApply !== undefined) stmts.push(upsert('ai_auto_apply', patch.aiAutoApply));
   await d1.batch(stmts);
   return getSettings(d1, userId);
 }

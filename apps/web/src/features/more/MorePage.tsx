@@ -1,6 +1,25 @@
-import { ChevronRight, FileUp, History, Inbox, Shapes, Users, Wallet, Wand2 } from 'lucide-react';
+import {
+  ChevronRight,
+  ClipboardCheck,
+  FileUp,
+  History,
+  Inbox,
+  MessageSquareText,
+  Shapes,
+  Users,
+  Wallet,
+  Wand2,
+} from 'lucide-react';
 import { Link } from 'react-router';
-import { useCategories, useHealth, useInboxCount, useMe } from '@/app/queries';
+import {
+  useCategories,
+  useHealth,
+  useInboxCount,
+  useMe,
+  useReviewCount,
+  useSettings,
+  useUpdateSettings,
+} from '@/app/queries';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePreferences, type ThemePref } from '@/lib/preferences';
@@ -18,6 +37,9 @@ export function MorePage() {
   const me = useMe();
   const categories = useCategories();
   const inboxCount = useInboxCount();
+  const reviewCount = useReviewCount();
+  const settings = useSettings();
+  const updateSettings = useUpdateSettings();
 
   return (
     <div className="flex flex-col gap-4">
@@ -25,11 +47,22 @@ export function MorePage() {
         <ul className="divide-y divide-border">
           {[
             { to: '/inbox', label: 'Needs labelling', icon: Inbox, badge: inboxCount.data },
+            ...(reviewCount.data
+              ? [
+                  {
+                    to: '/transactions?status=needs_review',
+                    label: 'Needs review',
+                    icon: ClipboardCheck,
+                    badge: reviewCount.data,
+                  },
+                ]
+              : []),
             { to: '/more/accounts', label: 'Accounts', icon: Wallet },
             { to: '/more/categories', label: 'Categories', icon: Shapes },
             { to: '/more/rules', label: 'Rules & learned labels', icon: Wand2 },
             { to: '/more/payees', label: 'Payees', icon: Users },
             { to: '/import', label: 'Import statement', icon: FileUp },
+            { to: '/import/sms', label: 'Paste bank SMS', icon: MessageSquareText },
             { to: '/more/imports', label: 'Import history', icon: History },
           ].map(({ to, label, icon: Icon, badge }) => (
             <li key={to}>
@@ -86,6 +119,27 @@ export function MorePage() {
           </label>
         </CardContent>
       </Card>
+
+      {me.data?.features.ai && (
+        <Card>
+          <CardContent className="flex flex-col gap-1 pt-4">
+            <label className="flex min-h-11 items-center justify-between gap-4 text-sm font-medium">
+              Apply confident AI suggestions automatically
+              <input
+                type="checkbox"
+                className="size-5 accent-[var(--primary)]"
+                checked={settings.data?.aiAutoApply ?? false}
+                disabled={!settings.data || updateSettings.isPending}
+                onChange={(e) => updateSettings.mutate({ aiAutoApply: e.target.checked })}
+              />
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Only suggestions the model is at least 90% sure of, marked "AI" and undoable. Your
+              rules, labels and manual choices always win.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

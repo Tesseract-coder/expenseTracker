@@ -192,6 +192,7 @@ export const CATEGORY_ACTIONS = [
   'apply_learned',
   'apply_rule',
   'auto_categorize',
+  'ai_categorize',
 ] as const;
 
 // ---------------------------------------------------------------------------- re-run categorization
@@ -283,7 +284,7 @@ export const RUN_SELECT = `select t.id, t.raw_narration, t.note, t.direction, t.
   join accounts a on a.id = t.account_id
   left join counterparties cp on cp.id = t.counterparty_id`;
 
-const UPDATE_FROM_JSON_SQL = `update transactions set
+export const UPDATE_FROM_JSON_SQL = `update transactions set
     channel = coalesce(j.channel, transactions.channel),
     vpa = coalesce(j.vpa, transactions.vpa),
     ifsc_prefix = coalesce(j.ifsc, transactions.ifsc_prefix),
@@ -306,7 +307,7 @@ const UPDATE_FROM_JSON_SQL = `update transactions set
     from json_each(?1)) as j
   where transactions.id = j.id and transactions.user_id = ?2 and transactions.categorized_by != 'manual'`;
 
-const AUDIT_FROM_JSON_SQL = `insert into audit_log (id, user_id, batch_id, action, entity, entity_id, before, after, created_at)
+export const AUDIT_FROM_JSON_SQL = `insert into audit_log (id, user_id, batch_id, action, entity, entity_id, before, after, created_at)
   select lower(hex(randomblob(16))), ?1, ?2, ?3, 'transaction', json_extract(value, '$.id'),
     json_extract(value, '$.before'), json_extract(value, '$.after'), ?4
   from json_each(?5)`;
@@ -382,6 +383,8 @@ export async function runCategorizationChunk(
     if (scope.kind === 'rule' && !ruleById.has(scope.ruleId)) continue;
 
     const result = categorize(input, ctx);
+    // AI sits after the keyword step: a re-run with no match keeps an applied AI category.
+    if (!result && r.categorized_by === 'ai') continue;
     const after: CategoryState = result
       ? {
           categoryId: result.categoryId,

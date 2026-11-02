@@ -1,8 +1,15 @@
-import { CheckCheck, CheckSquare, MoreHorizontal, Sparkles } from 'lucide-react';
+import { Bot, CheckCheck, CheckSquare, MoreHorizontal, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import type { TransactionDto } from '@kharcha/shared';
-import { useAccounts, useCategoryMap, useInbox, useRunCategorization } from '@/app/queries';
+import { AI_BATCH, type TransactionDto } from '@kharcha/shared';
+import {
+  useAccounts,
+  useAiSuggest,
+  useCategoryMap,
+  useInbox,
+  useMe,
+  useRunCategorization,
+} from '@/app/queries';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { EmptyState } from '@/components/EmptyState';
 import { Money } from '@/components/Money';
@@ -24,6 +31,8 @@ export function InboxPage() {
   const { byId } = useCategoryMap();
   const { openLabel } = useLabelSheet();
   const run = useRunCategorization();
+  const me = useMe();
+  const ai = useAiSuggest();
   const showUndo = useUndoToast();
   const [selection, setSelection] = useState<Set<string> | null>(null);
 
@@ -64,6 +73,29 @@ export function InboxPage() {
           : toast('Nothing new matched your rules, labels or keywords'),
       onError: (e) => toast.error(errorMessage(e)),
     });
+
+  const askAi = () => {
+    const ids = rows
+      .filter((r) => !r.aiSuggestion)
+      .slice(0, AI_BATCH)
+      .map((r) => r.id);
+    if (ids.length === 0) {
+      toast('Every transaction shown already has an AI suggestion');
+      return;
+    }
+    ai.mutate(ids, {
+      onSuccess: (r) => {
+        const pending = r.suggestions.length - r.applied;
+        const msg =
+          r.suggestions.length === 0
+            ? "The AI wasn't confident about any of these"
+            : `${r.applied ? `Applied ${r.applied} confident suggestion${r.applied === 1 ? '' : 's'}. ` : ''}${pending ? `${pending} suggestion${pending === 1 ? '' : 's'} to review.` : ''}`;
+        if (r.undoToken) showUndo(msg, r.undoToken);
+        else toast(msg);
+      },
+      onError: (e) => toast.error(errorMessage(e)),
+    });
+  };
 
   if (inbox.isPending) {
     return (
@@ -108,6 +140,11 @@ export function InboxPage() {
           <Chip onClick={autoCategorize} disabled={run.isPending} aria-label="Auto-categorize">
             <Sparkles aria-hidden className="size-4" /> {run.isPending ? 'Working…' : 'Auto'}
           </Chip>
+          {me.data?.features.ai && (
+            <Chip onClick={askAi} disabled={ai.isPending} aria-label="Ask AI for suggestions">
+              <Bot aria-hidden className="size-4" /> {ai.isPending ? 'Asking…' : 'Ask AI'}
+            </Chip>
+          )}
         </div>
       </div>
 
@@ -165,6 +202,8 @@ function InboxItem({
   onMore: () => void;
 }) {
   const title = transactionTitle(txn, undefined);
+  const aiSuggestion = txn.aiSuggestion;
+  const aiCategory = aiSuggestion ? byId.get(aiSuggestion.categoryId) : undefined;
   return (
     <li>
       <Card className={cn('flex flex-col gap-2 p-3', selected && 'border-primary bg-accent')}>
@@ -200,16 +239,33 @@ function InboxItem({
             role="group"
             aria-label={`Categories for ${title}`}
           >
-            {suggestionIds.map((id) => {
-              const c = byId.get(id);
-              if (!c) return null;
-              return (
-                <Chip key={id} onClick={() => onPick(id)} className="pl-1.5">
-                  <CategoryIcon icon={c.icon} color={c.color} className="size-7" />
-                  {c.name}
-                </Chip>
-              );
-            })}
+            {aiSuggestion && aiCategory && (
+              <Chip
+                onClick={() => onPick(aiSuggestion.categoryId)}
+                className="pl-1.5"
+                aria-label={`AI suggested: ${aiCategory.name}`}
+              >
+                <Bot aria-hidden className="size-4 text-primary" />
+                {aiCategory.name}
+                {aiSuggestion.confidence !== null && (
+                  <span className="text-xs text-muted-foreground">
+                    AI · {Math.round(aiSuggestion.confidence * 100)}%
+                  </span>
+                )}
+              </Chip>
+            )}
+            {suggestionIds
+              .filter((id) => id !== txn.aiSuggestion?.categoryId)
+              .map((id) => {
+                const c = byId.get(id);
+                if (!c) return null;
+                return (
+                  <Chip key={id} onClick={() => onPick(id)} className="pl-1.5">
+                    <CategoryIcon icon={c.icon} color={c.color} className="size-7" />
+                    {c.name}
+                  </Chip>
+                );
+              })}
             <Chip onClick={onMore} aria-label={`More categories for ${title}`}>
               <MoreHorizontal aria-hidden className="size-4" /> Other
             </Chip>

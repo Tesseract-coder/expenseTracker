@@ -83,13 +83,15 @@ export function ImportsHistoryPage() {
                       View
                     </Link>
                   )}
-                  <a
-                    href={`/api/imports/${i.id}/file`}
-                    className="inline-flex min-h-11 items-center gap-1 text-sm text-primary"
-                    download
-                  >
-                    <Download aria-hidden className="size-4" /> Original
-                  </a>
+                  {i.source === 'file' && (
+                    <a
+                      href={`/api/imports/${i.id}/file`}
+                      className="inline-flex min-h-11 items-center gap-1 text-sm text-primary"
+                      download
+                    >
+                      <Download aria-hidden className="size-4" /> Original
+                    </a>
+                  )}
                   {i.status === 'committed' && (
                     <button
                       type="button"

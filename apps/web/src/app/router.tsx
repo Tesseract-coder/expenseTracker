@@ -15,6 +15,9 @@ import { NotFoundPage } from './NotFoundPage';
 const ImportPage = lazy(() =>
   import('@/features/import/ImportPage').then((m) => ({ default: m.ImportPage })),
 );
+const PasteAlertsPage = lazy(() =>
+  import('@/features/import/PasteAlertsPage').then((m) => ({ default: m.PasteAlertsPage })),
+);
 const ImportsHistoryPage = lazy(() =>
   import('@/features/import/ImportsHistoryPage').then((m) => ({ default: m.ImportsHistoryPage })),
 );
@@ -52,6 +55,11 @@ export const routes = [
       },
       { path: 'more/payees', element: lazyPage(<PayeesPage />), handle: { title: 'Payees' } },
       { path: 'import', element: lazyPage(<ImportPage />), handle: { title: 'Import statement' } },
+      {
+        path: 'import/sms',
+        element: lazyPage(<PasteAlertsPage />),
+        handle: { title: 'Paste bank SMS' },
+      },
       {
         path: 'more/imports',
         element: lazyPage(<ImportsHistoryPage />),
