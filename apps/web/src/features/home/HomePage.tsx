@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountBalance } from '@/features/accounts/AccountsPage';
 import { TransactionRow } from '@/features/transactions/TransactionRow';
+import { Dashboard } from './Dashboard';
 import { useTransactionSheet } from '@/features/transactions/TransactionSheet';
 
 export function HomePage() {
@@ -26,19 +27,6 @@ export function HomePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Net balance across accounts</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {accounts.isPending ? (
-            <Skeleton className="h-8 w-40" />
-          ) : (
-            <Money paise={netWorth} className="text-2xl font-semibold" />
-          )}
-        </CardContent>
-      </Card>
-
       {(inboxCount.data ?? 0) > 0 && (
         <Link
           to="/inbox"
@@ -51,6 +39,21 @@ export function HomePage() {
           <ChevronRight aria-hidden className="size-5" />
         </Link>
       )}
+
+      <Dashboard />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Net balance across accounts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {accounts.isPending ? (
+            <Skeleton className="h-8 w-40" />
+          ) : (
+            <Money paise={netWorth} className="text-2xl font-semibold" />
+          )}
+        </CardContent>
+      </Card>
 
       <section aria-labelledby="accounts-heading">
         <div className="mb-2 flex items-center justify-between">

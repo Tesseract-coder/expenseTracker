@@ -8,6 +8,7 @@
  */
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import { safeCell, type Sheet } from '../export';
 import type { Grid } from '../import/mapping';
 
 export type SpreadsheetKind = 'csv' | 'xlsx';
@@ -71,4 +72,27 @@ export function readSpreadsheet(data: ArrayBuffer, fileName: string): Grid {
     blankrows: true,
   });
   return rows.map((r) => r.map(cellToString));
+}
+
+/** Builds an .xlsx file from sheets (text cells guarded against formula injection). */
+export function writeXlsx(sheets: Sheet[]): Uint8Array<ArrayBuffer> {
+  const wb = XLSX.utils.book_new();
+  for (const s of sheets) {
+    const ws = XLSX.utils.aoa_to_sheet(s.rows.map((r) => r.map(safeCell)));
+    const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
+    for (const c of s.moneyColumns ?? []) {
+      for (let r = range.s.r; r <= range.e.r; r++) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c })];
+        if (cell && cell.t === 'n') cell.z = '#,##0.00';
+      }
+    }
+    ws['!cols'] = (s.rows[0] ?? []).map((_, i) => ({
+      wch: Math.min(
+        48,
+        Math.max(10, ...s.rows.slice(0, 200).map((r) => String(r[i] ?? '').length + 2)),
+      ),
+    }));
+    XLSX.utils.book_append_sheet(wb, ws, s.name.slice(0, 31));
+  }
+  return new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer);
 }

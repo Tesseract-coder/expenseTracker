@@ -7,7 +7,6 @@ import { CategoriesPage } from '@/features/categories/CategoriesPage';
 import { InboxPage } from '@/features/categorize/InboxPage';
 import { HomePage } from '@/features/home/HomePage';
 import { MorePage } from '@/features/more/MorePage';
-import { ReportsPage } from '@/features/reports/ReportsPage';
 import { TransactionsPage } from '@/features/transactions/TransactionsPage';
 import { AppLayout } from './AppLayout';
 import { NotFoundPage } from './NotFoundPage';
@@ -18,6 +17,10 @@ const ImportPage = lazy(() =>
 );
 const ImportsHistoryPage = lazy(() =>
   import('@/features/import/ImportsHistoryPage').then((m) => ({ default: m.ImportsHistoryPage })),
+);
+// Reports (and Recharts) load only when opened.
+const ReportsPage = lazy(() =>
+  import('@/features/reports/ReportsPage').then((m) => ({ default: m.ReportsPage })),
 );
 const RulesPage = lazy(() =>
   import('@/features/categorize/RulesPage').then((m) => ({ default: m.RulesPage })),
@@ -37,7 +40,7 @@ export const routes = [
       { index: true, element: <HomePage />, handle: { title: 'Kharcha' } },
       { path: 'transactions', element: <TransactionsPage />, handle: { title: 'Transactions' } },
       { path: 'add', element: <AddPage />, handle: { title: 'Add transaction' } },
-      { path: 'reports', element: <ReportsPage />, handle: { title: 'Reports' } },
+      { path: 'reports', element: lazyPage(<ReportsPage />), handle: { title: 'Reports' } },
       { path: 'more', element: <MorePage />, handle: { title: 'More' } },
       { path: 'more/accounts', element: <AccountsPage />, handle: { title: 'Accounts' } },
       { path: 'more/categories', element: <CategoriesPage />, handle: { title: 'Categories' } },

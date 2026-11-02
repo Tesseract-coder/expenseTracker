@@ -44,6 +44,11 @@ name = "UPLOAD_LIMITER"
 namespace_id = "1001"
 simple = { limit = 1000, period = 60 }
 
+# Daily jobs at 02:00 IST (recurring-payment refresh, audit-log pruning). Test locally with
+# `wrangler dev --test-scheduled` and GET /__scheduled. Triggers are not inherited by envs.
+[triggers]
+crons = ["30 20 * * *"]
+
 # ---------------------------------------------------------------------------
 [env.preview]
 name = "kharcha-preview"
@@ -104,6 +109,9 @@ bucket_name = "kharcha-statements"
 name = "UPLOAD_LIMITER"
 namespace_id = "1003"
 simple = { limit = 30, period = 60 }
+
+[env.production.triggers]
+crons = ["30 20 * * *"]   # preview has no cron, to stay well inside the Free plan's 5 triggers
 
 # Optional, add per env when enabled:
 # [[env.production.queues.producers]]  binding = "IMPORT_QUEUE"  queue = "kharcha-jobs"

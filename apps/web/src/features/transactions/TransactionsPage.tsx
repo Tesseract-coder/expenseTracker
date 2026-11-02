@@ -1,4 +1,5 @@
-import { CheckSquare, List, Search, SlidersHorizontal, X } from 'lucide-react';
+import { CheckSquare, Download, List, Search, SlidersHorizontal, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { periodRange, toIstDate, previousPeriodRange } from '@kharcha/shared';
@@ -11,6 +12,7 @@ import { Field, Input, Select } from '@/components/ui/input';
 import { Sheet } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDayHeader } from '@/lib/format';
+import { errorMessage } from '@/lib/api';
 import { categoryLabel } from '@/lib/categories';
 import { CategoryPicker } from '@/features/categories/CategoryPicker';
 import { useLabelSheet } from '@/features/categorize/LabelSheet';
@@ -37,6 +39,25 @@ export function TransactionsPage() {
   const { openEdit } = useTransactionSheet();
   const { openLabel } = useLabelSheet();
   const [selection, setSelection] = useState<Set<string> | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const runExport = async (format: 'csv' | 'xlsx') => {
+    setExporting(true);
+    try {
+      const { downloadTransactions } = await import('@/features/reports/exporting');
+      const r = await downloadTransactions(filters, format);
+      toast.success(
+        r.truncated
+          ? `Exported the first ${r.count} rows`
+          : `Exported ${r.count} row${r.count === 1 ? '' : 's'}`,
+      );
+      setExportOpen(false);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setExporting(false);
+    }
+  };
   const toggle = (id: string) =>
     setSelection((prev) => {
       const next = new Set(prev);
@@ -118,6 +139,9 @@ export function TransactionsPage() {
         >
           <CheckSquare aria-hidden className="size-4" /> Select
         </Chip>
+        <Chip onClick={() => setExportOpen(true)} aria-label="Export transactions">
+          <Download aria-hidden className="size-4" /> Export
+        </Chip>
       </div>
 
       {list.isPending ? (
@@ -191,6 +215,22 @@ export function TransactionsPage() {
           onDone={() => setSelection(null)}
         />
       )}
+
+      <Sheet
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export transactions"
+        description="Exports every transaction matching the current search and filters (up to 20,000)."
+      >
+        <div className="grid grid-cols-2 gap-2">
+          <Button disabled={exporting} onClick={() => void runExport('xlsx')}>
+            Excel (.xlsx)
+          </Button>
+          <Button variant="outline" disabled={exporting} onClick={() => void runExport('csv')}>
+            CSV
+          </Button>
+        </div>
+      </Sheet>
 
       <FilterSheet
         open={filtersOpen}

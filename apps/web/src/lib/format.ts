@@ -54,3 +54,44 @@ export const PALETTE = [
   '#dc2626',
   '#0891b2',
 ];
+
+/** Compact INR for axis ticks: ₹950, ₹12K, ₹1.2L, ₹3.4Cr (Indian units). */
+export function compactINR(paise: number): string {
+  const r = Math.round(paise / 100);
+  const a = Math.abs(r);
+  const sign = r < 0 ? '−' : '';
+  const trim = (n: number) =>
+    n >= 10 ? Math.round(n).toString() : n.toFixed(1).replace(/\.0$/, '');
+  if (a >= 1_00_00_000) return `${sign}₹${trim(a / 1_00_00_000)}Cr`;
+  if (a >= 1_00_000) return `${sign}₹${trim(a / 1_00_000)}L`;
+  if (a >= 1_000) return `${sign}₹${trim(a / 1_000)}K`;
+  return `${sign}₹${a}`;
+}
+
+/** "▲ 12%" style relative change; null when there is no base to compare. */
+export function formatPct(x: number | null, digits = 0): string {
+  if (x === null || !Number.isFinite(x)) return '—';
+  return `${(x * 100).toFixed(digits)}%`;
+}
+
+const monthShort = new Intl.DateTimeFormat('en-IN', { month: 'short', timeZone: 'UTC' });
+const monthShortYear = new Intl.DateTimeFormat('en-IN', {
+  month: 'short',
+  year: '2-digit',
+  timeZone: 'UTC',
+});
+const dayMonth = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+});
+
+/** Axis label for a bucket key: '2026-10' → "Oct 26", '2026-10-05' → "5 Oct", 'FY 2026-27' as is. */
+export function bucketLabel(bucket: string, long = false): string {
+  if (/^\d{4}-\d{2}$/.test(bucket)) {
+    const d = new Date(`${bucket}-01T00:00:00Z`);
+    return (long ? monthShortYear : monthShort).format(d);
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(bucket)) return dayMonth.format(new Date(`${bucket}T00:00:00Z`));
+  return bucket;
+}

@@ -6,3 +6,5 @@ export * from './text';
 export * from './crypto';
 export * from './import';
 export * from './categorize';
+export * from './reports';
+export * from './export';

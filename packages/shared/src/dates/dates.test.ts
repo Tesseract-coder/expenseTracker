@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   addDays,
+  addMonths,
+  daysInMonth,
+  monthsInRange,
+  weekdayCounts,
   diffDays,
   fyLabel,
   fyStartYear,
@@ -112,4 +116,37 @@ describe('periodRange', () => {
   });
   it('monthKey', () => expect(monthKey('2026-11-01')).toBe('2026-11'));
   it('rejects invalid dates', () => expect(() => periodRange('month', 'nope')).toThrow(RangeError));
+});
+
+describe('month helpers', () => {
+  it.each([
+    ['2026-01-31', 1, '2026-02-28'],
+    ['2028-01-31', 1, '2028-02-29'],
+    ['2026-11-15', 2, '2027-01-15'],
+    ['2026-03-31', -1, '2026-02-28'],
+    ['2026-01-10', -13, '2024-12-10'],
+  ])('addMonths(%s, %i) = %s', (d, n, e) => expect(addMonths(d, n)).toBe(e));
+
+  it('daysInMonth', () => {
+    expect(daysInMonth('2026-02')).toBe(28);
+    expect(daysInMonth('2028-02-10')).toBe(29);
+    expect(daysInMonth('2026-12-01')).toBe(31);
+  });
+
+  it('monthsInRange', () => {
+    expect(monthsInRange('2026-11-15', '2027-02-01')).toEqual([
+      '2026-11',
+      '2026-12',
+      '2027-01',
+      '2027-02',
+    ]);
+    expect(monthsInRange('2026-05-01', '2026-05-31')).toEqual(['2026-05']);
+  });
+
+  it('weekdayCounts', () => {
+    // Nov 2026: starts Sunday, 30 days → Sun & Mon ×5, others ×4.
+    const c = weekdayCounts('2026-11-01', '2026-11-30');
+    expect(c.slice(1)).toEqual([5, 4, 4, 4, 4, 4, 5]);
+    expect(weekdayCounts('2026-11-02', '2026-11-02').slice(1)).toEqual([1, 0, 0, 0, 0, 0, 0]);
+  });
 });

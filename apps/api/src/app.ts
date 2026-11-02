@@ -17,6 +17,13 @@ import { healthRoutes } from './routes/health';
 import { importRoutes, parserProfileRoutes } from './routes/imports';
 import { meRoutes } from './routes/me';
 import {
+  budgetRoutes,
+  exportRoutes,
+  recurringRoutes,
+  reportRoutes,
+  settingsRoutes,
+} from './routes/reports';
+import {
   counterpartyRoutes,
   tagRoutes,
   transactionRoutes,
@@ -57,7 +64,12 @@ export function createApp(deps: AppDeps = {}) {
     .route('/inbox', inboxRoutes)
     .route('/categorization', categorizationRoutes)
     .route('/rules', ruleRoutes)
-    .route('/learned-labels', learnedLabelRoutes);
+    .route('/learned-labels', learnedLabelRoutes)
+    .route('/reports', reportRoutes)
+    .route('/budgets', budgetRoutes)
+    .route('/recurring', recurringRoutes)
+    .route('/settings', settingsRoutes)
+    .route('/export', exportRoutes);
 
   api.onError(errorHandler);
 

@@ -15,6 +15,20 @@
       "when": 1793552457265,
       "tag": "0001_expression_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793603788817,
+      "tag": "0002_recurring_last_amount",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793603789562,
+      "tag": "0003_v_ledger",
+      "breakpoints": true
     }
   ]
 }

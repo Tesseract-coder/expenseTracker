@@ -66,6 +66,12 @@ test.describe('PWA shell', () => {
       '/inbox',
       '/more/rules',
       '/more/payees',
+      '/reports?tab=trends',
+      '/reports?tab=when&period=year',
+      '/reports?tab=where',
+      '/reports?tab=budgets',
+      '/reports?tab=recurring',
+      '/reports?tab=report',
     ]) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');

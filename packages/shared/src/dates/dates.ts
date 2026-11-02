@@ -120,3 +120,42 @@ export function previousPeriodRange(
 ): DateRange {
   return periodRange(kind, addDays(range.from, -1), yearMode);
 }
+
+/** Days in the month of `date` (or of a 'YYYY-MM' key). */
+export function daysInMonth(dateOrMonth: string): number {
+  return lastDayOfMonth(Number(dateOrMonth.slice(0, 4)), Number(dateOrMonth.slice(5, 7)));
+}
+
+/** Same day `n` months later, clamped to the month's last day (Jan 31 + 1 → Feb 28/29). */
+export function addMonths(date: IsoDate, n: number): IsoDate {
+  parse(date);
+  const total = Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1 + n;
+  const y = Math.floor(total / 12);
+  const m = (total % 12) + 1;
+  const d = Math.min(Number(date.slice(8, 10)), lastDayOfMonth(y, m));
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/** 'YYYY-MM' keys from the month of `from` through the month of `to`, inclusive. */
+export function monthsInRange(from: IsoDate, to: IsoDate): string[] {
+  const out: string[] = [];
+  let cur = `${from.slice(0, 7)}-01`;
+  const end = to.slice(0, 7);
+  while (cur.slice(0, 7) <= end) {
+    out.push(cur.slice(0, 7));
+    cur = addMonths(cur, 1);
+  }
+  return out;
+}
+
+/** Number of each ISO weekday (index 1–7) in an inclusive range. */
+export function weekdayCounts(from: IsoDate, to: IsoDate): number[] {
+  const counts = [0, 0, 0, 0, 0, 0, 0, 0];
+  const days = diffDays(from, to) + 1;
+  const first = isoDayOfWeek(from);
+  for (let i = 0; i < Math.min(days, 7); i++) {
+    const dow = ((first - 1 + i) % 7) + 1;
+    counts[dow] = Math.floor((days - i - 1) / 7) + 1;
+  }
+  return counts;
+}

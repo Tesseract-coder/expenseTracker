@@ -42,6 +42,16 @@ Single-user personal finance PWA on Cloudflare (Workers + Static Assets, D1, R2)
 - **Hot paths in the Worker** (Free plan, 10 ms CPU): avoid per-row async/WebCrypto and all-pairs loops; bucket by key first. Benchmark changes with a temporary warm-median Vitest bench before claiming a speed-up.
 - **Undo**: destructive or bulk operations write `audit_log` rows sharing a `batch_id`; `POST /api/undo/:batchId` replays them in one D1 batch (`services/undo.ts`). Category actions must store the `CategoryState` shape (`services/categorization.ts`) and be listed in `CATEGORY_ACTIONS`; undo only restores rows still holding the batch's `after.categoryId`.
 - **Categorization** (`packages/shared/src/categorize`): pipeline `rules → learned labels → keyword dictionary`, never touching `categorized_by='manual'`. Add merchants to `dictionary.json` (slugs must exist in the seed; the test enforces it) and add a case to `dictionary.test.ts`. New narration shapes go in `normalize.test.ts`. Server entry points: `loadCategorizer` + `categorize` (import preview, manual create) and `runCategorizationChunk` (re-run / apply rule, 250 rows per request, loop on `nextCursor`). Mixing Drizzle builders with raw SQL in one atomic batch: convert builders with `toD1()` (`db/batch.ts`) and use `d1.batch`.
+- **Reports** read `v_ledger` only (`services/reports.ts#ledgerWhere` gives the `where` with ?1 user, ?2 from, ?3 to, ?4 accounts JSON). Spend = `spend_paise` over `kind in ('need','want','uncategorized')`; never re-derive it in JS. Pure math (health score, recurring detection, budget projection, insights) lives in `packages/shared/src/reports` with table-driven tests. Gap-fill buckets with `bucketsInRange`.
+- **Charts** (`components/charts`): use the CSS-variable palette in `index.css` (`--series-1..6`, `--seq-1..6`, status), which was validated with the dataviz validator for light (#ffffff) and dark (#131824) cards. Rules:
+  - slots in fixed order; a 7th series folds into Other
+  - every chart in a `ChartCard` with a table view; a legend for ≥ 2 series
+  - status shown as icon + label (`StatusBadge`)
+  - text never in series colors
+  - no donuts or dual axes
+  - Recharts only in lazy chunks
+- **Exports**: build sheets with `reportSheets` / `transactionRows` / `toCsv` (shared, pure), write XLSX with `@kharcha/shared/spreadsheet#writeXlsx` (browser only). Never bypass `safeCell` (formula injection).
+- **Demo data**: `pnpm seed:demo` (see DEPLOYMENT §10).
 - **Rate limits**: `rateLimit(scope, { skip })`. Chunked endpoints pass `skip: isContinuation` so only the first request of a run counts.
 - **Category identity**: seeded categories are referenced by `slug` (stable), never by ID or name.
 - **Auth**: every `/api/*` request goes through `accessAuth` (Access JWT: JWKS signature, iss, aud, exp + `ALLOWED_EMAILS`). Dev bypass only when `AUTH_MODE=dev` + localhost + non-production. Errors: `{ error: { code, message, requestId } }` via `ApiException`.

@@ -1,5 +1,40 @@
 # Changelog
 
+## Phase 4 — Reports & health score (2026-11-02)
+
+- **Dashboard (Home)**:
+  - Week / Month / Year / Custom periods: Monday weeks, financial year when chosen, prev/next, account filter; all kept in the URL.
+  - Spent as the hero figure, with Income, Invested, Net savings and Savings rate tiles, each with a ▲/▼ change vs the previous period.
+  - "Where it went": a segmented bar plus a list that drills from group to categories to transactions.
+  - Spending trend chart.
+  - A note when received money is uncategorized.
+- **Reports** (`/reports`, one filter row for every tab):
+  - **Health**: an explainable 0–100 score with band, seven components (value, target, verdict, status), the biggest drivers, and rule-based suggestions (e.g. "Food delivery averaged ₹6,800/month…; cutting to ₹4,000 raises your savings rate by 3.1 pts"). A Targets sheet covers year mode, savings/investment targets, the 50/30/20 split and the emergency fund.
+  - **Trends**: weekly/monthly/yearly income vs spend vs invested; spend by category stacked (top 5 + Other); category table with MoM, YoY and 3- and 12-month rolling averages.
+  - **When**: calendar heatmap, average spend by weekday, spend by week of month, highest-spend days (with their biggest transactions), weeks and months.
+  - **Where**: what changed vs the previous period, top categories and payees (ranked bars), biggest single spends.
+  - **Budgets**: monthly per category or group, "this month only" overrides, meters with 80%/100% states and a run-rate projection.
+  - **Recurring**: subscriptions, rent, SIPs and EMIs detected automatically, with next expected date, new / price-changed / stopped flags, hide/show, and the monthly total.
+  - **Report**: printable statement (print → PDF) and **XLSX** download (Summary, By category, By counterparty, Transactions).
+- **Export** of any filtered transaction list to XLSX or CSV (split parts as rows, formula-injection safe).
+- API: `v_ledger` view; report, budget, recurring, settings and export endpoints; daily cron (recurring refresh, 180-day audit pruning). All aggregation is in SQL.
+- Charts follow the dataviz method:
+  - validated palette with separately chosen light and dark steps
+  - thin bars, hairline grids
+  - tooltips, legends and a table view on every chart
+  - status shown as icon + label, privacy blur everywhere (including axis ticks)
+- `pnpm seed:demo`: 12 months of realistic demo data (deterministic, idempotent; `--months`/`--scale` for perf work).
+- Fixed along the way:
+  - a period with no data scored as healthy
+  - health for a future period scored the current month
+  - an invalid custom range kept its label
+  - demo accounts could trigger transfer hints in imports
+- Tests:
+  - shared: 63 new (health score table incl. the spec's example, recurring detection, budgets, insights, exports and formula injection; reports module 99%)
+  - API: 19 new integration tests (hand-computed ledger with refunds, splits, transfers and uncategorized; FY buckets; Monday weeks; budgets with overrides; recurring with price change; export; cron; isolation)
+  - web: 12 new unit tests
+  - E2E: 3 new flows × 2 viewports (dashboard totals + drill-down, health/budgets/report, XLSX + CSV export); the overflow check now covers every Reports tab
+
 ## Phase 3 — Categorization engine (2026-11-02)
 
 - **Normalization** of Indian bank narrations: channel, UPI ID, IFSC/bank code, RRN/UTR, clean payee name and remark, and a canonical payee key (UPI ID first). Covers UPI slash and HDFC dash formats, NEFT/IMPS/RTGS, ACH/NACH mandates, POS/card descriptors (city suffixes, truncated `PVT LI`), ATM, interest, charges and cheque clearing.

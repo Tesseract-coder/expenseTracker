@@ -1,4 +1,10 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useMemo } from 'react';
 import {
   type AccountCreate,
@@ -51,9 +57,20 @@ import {
   ruleTestResponseSchema,
   type RuleUpdate,
   counterpartyDtoSchema,
+  budgetListResponseSchema,
+  type BudgetUpsert,
+  exportResponseSchema,
+  healthScoreResponseSchema,
+  recurringListResponseSchema,
+  settingsDtoSchema,
+  type SettingsPatch,
+  summaryResponseSchema,
+  trendsResponseSchema,
+  whenResponseSchema,
+  whereResponseSchema,
 } from '@kharcha/shared';
 import { z } from 'zod';
-import { apiDelete, apiGet, apiPatch, apiPost, apiUpload } from '@/lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut, apiUpload } from '@/lib/api';
 
 export type TxnFilters = Omit<TransactionListQuery, 'cursor' | 'limit'>;
 
@@ -71,6 +88,10 @@ export const queryKeys = {
   inbox: ['inbox'] as const,
   rules: ['rules'] as const,
   learnedLabels: ['learned-labels'] as const,
+  reports: ['reports'] as const,
+  settings: ['settings'] as const,
+  budgets: ['budgets'] as const,
+  recurring: ['recurring'] as const,
   labelImpact: (
     txnId: string,
     categoryId: string,
@@ -167,6 +188,9 @@ const TXN_KEYS = [
   ['counterparties'],
   queryKeys.inbox,
   ['label-impact'],
+  queryKeys.reports,
+  queryKeys.budgets,
+  queryKeys.recurring,
 ] as const;
 /** Category changes also move rule/learned-label hit counts. */
 const CATEGORY_KEYS = [...TXN_KEYS, queryKeys.rules, queryKeys.learnedLabels] as const;
@@ -510,3 +534,94 @@ export function useMergeCounterparty() {
     onSuccess: () => invalidate(...CATEGORY_KEYS),
   });
 }
+
+// ---------------------------------------------------------------------------- reports
+
+type Params = Record<string, string | number | boolean | string[] | undefined>;
+
+/** Report queries keep the previous result while a new period loads (no skeleton flash). */
+function reportQuery<S extends z.ZodType>(
+  name: string,
+  path: string,
+  params: Params,
+  schema: S,
+  enabled = true,
+) {
+  return {
+    queryKey: [...queryKeys.reports, name, params] as const,
+    queryFn: () => apiGet(`${path}${toQueryString(params)}`, schema),
+    placeholderData: keepPreviousData,
+    enabled,
+  };
+}
+
+export const useSummary = (params: Params, enabled = true) =>
+  useQuery(reportQuery('summary', '/reports/summary', params, summaryResponseSchema, enabled));
+export const useTrends = (params: Params) =>
+  useQuery(reportQuery('trends', '/reports/trends', params, trendsResponseSchema));
+export const useWhen = (params: Params) =>
+  useQuery(reportQuery('when', '/reports/when', params, whenResponseSchema));
+export const useWhere = (params: Params) =>
+  useQuery(reportQuery('where', '/reports/where', params, whereResponseSchema));
+export const useHealthScore = (params: Params) =>
+  useQuery(reportQuery('health', '/reports/health', params, healthScoreResponseSchema));
+
+export const useSettings = () =>
+  useQuery({
+    queryKey: queryKeys.settings,
+    queryFn: () => apiGet('/settings', z.object({ settings: settingsDtoSchema })),
+    select: (d) => d.settings,
+    staleTime: 5 * 60_000,
+  });
+
+export function useUpdateSettings() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (body: SettingsPatch) =>
+      apiPatch('/settings', body, z.object({ settings: settingsDtoSchema })),
+    onSuccess: () => invalidate(queryKeys.settings, queryKeys.reports),
+  });
+}
+
+export const useBudgets = (month: string, accountIds?: string[]) =>
+  useQuery({
+    queryKey: [...queryKeys.budgets, month, accountIds ?? []],
+    queryFn: () =>
+      apiGet(`/budgets${toQueryString({ month, accountIds })}`, budgetListResponseSchema),
+    placeholderData: keepPreviousData,
+  });
+
+export function useSaveBudget() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (body: BudgetUpsert) => apiPut('/budgets', body, z.object({ id: z.string() })),
+    onSuccess: () => invalidate(queryKeys.budgets, queryKeys.reports),
+  });
+}
+
+export function useDeleteBudget() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete(`/budgets/${id}`),
+    onSuccess: () => invalidate(queryKeys.budgets, queryKeys.reports),
+  });
+}
+
+export const useRecurring = () =>
+  useQuery({
+    queryKey: queryKeys.recurring,
+    queryFn: () => apiGet('/recurring', recurringListResponseSchema),
+  });
+
+export function useDismissRecurring() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dismissed }: { id: string; dismissed: boolean }) =>
+      apiPatch(`/recurring/${id}`, { dismissed }, recurringListResponseSchema),
+    onSuccess: (data) => qc.setQueryData(queryKeys.recurring, data),
+  });
+}
+
+/** One-off fetch for exports (not cached). */
+export const fetchExport = (params: Params) =>
+  apiGet(`/export/transactions${toQueryString(params)}`, exportResponseSchema);

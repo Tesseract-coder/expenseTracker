@@ -236,8 +236,15 @@ export async function getTransaction(db: Db, userId: string, id: string): Promis
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
 
-export async function listTransactions(db: Db, userId: string, rawQuery: TransactionListQuery) {
-  const q = transactionListQuerySchema.parse(rawQuery);
+/**
+ * WHERE conditions for the transaction list filters (shared by the list and exports).
+ * Queries using them must left-join counterparties (search matches the payee name).
+ */
+export async function transactionFilterConds(
+  db: Db,
+  userId: string,
+  q: Omit<ReturnType<typeof transactionListQuerySchema.parse>, 'limit' | 'cursor'>,
+): Promise<(SQL | undefined)[]> {
   const t = transactions;
   const conds: (SQL | undefined)[] = [eq(t.userId, userId)];
 
@@ -272,6 +279,13 @@ export async function listTransactions(db: Db, userId: string, rawQuery: Transac
         ${amount && amount > 0 ? sql`or ${t.amountPaise} = ${amount}` : sql``})`,
     );
   }
+  return conds;
+}
+
+export async function listTransactions(db: Db, userId: string, rawQuery: TransactionListQuery) {
+  const q = transactionListQuerySchema.parse(rawQuery);
+  const t = transactions;
+  const conds = await transactionFilterConds(db, userId, q);
   if (q.cursor) {
     const c = decodeCursor(q.cursor);
     conds.push(

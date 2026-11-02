@@ -18,6 +18,15 @@
   --color-ring: var(--ring);
   --color-income: var(--income);
   --color-expense: var(--expense);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-status-good: var(--status-good);
+  --color-status-warning: var(--status-warning);
+  --color-status-serious: var(--status-serious);
+  --color-status-critical: var(--status-critical);
+  --color-delta-good: var(--delta-good);
+  --color-delta-bad: var(--delta-bad);
   --radius-lg: 0.75rem;
   --radius-md: 0.5rem;
 }
@@ -37,6 +46,33 @@
   --ring: oklch(0.51 0.09 186);
   --income: oklch(0.52 0.14 150);
   --expense: oklch(0.55 0.19 27);
+
+  /* Charts (dataviz reference palette, validated on the card surface #ffffff):
+     categorical slots 1–6 in fixed order, sequential blue ramp, status set, chrome. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --seq-1: #cde2fb;
+  --seq-2: #9ec5f4;
+  --seq-3: #6da7ec;
+  --seq-4: #3987e5;
+  --seq-5: #256abf;
+  --seq-6: #184f95;
+  /* Label ink inside a ramp cell: dark on the light steps, white on the dark steps. */
+  --seq-ink-low: #0b0b0b;
+  --seq-ink-high: #ffffff;
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+  --chart-muted: #6b6a66;
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --delta-good: #006300;
+  --delta-bad: #b42828;
 }
 
 .dark {
@@ -54,6 +90,27 @@
   --ring: oklch(0.7 0.11 182);
   --income: oklch(0.75 0.15 150);
   --expense: oklch(0.72 0.16 27);
+
+  /* Dark steps of the same hues, validated against the dark card surface (#131824). */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --seq-1: #104281;
+  --seq-2: #1c5cab;
+  --seq-3: #2a78d6;
+  --seq-4: #5598e7;
+  --seq-5: #86b6ef;
+  --seq-6: #b7d3f6;
+  --seq-ink-low: #ffffff;
+  --seq-ink-high: #0b0b0b;
+  --chart-grid: #2c2c2a;
+  --chart-axis: #383835;
+  --chart-muted: #a3a29b;
+  --delta-good: #0ca30c;
+  --delta-bad: #e66767;
 }
 
 html,
@@ -85,5 +142,27 @@ body {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Print: the report screen prints as a clean statement (spec §7.7, PDF via browser print). */
+@media print {
+  header,
+  nav,
+  [data-print-hide] {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  .privacy-blur [data-money] {
+    filter: none;
+  }
+  [data-print-break] {
+    break-before: page;
   }
 }

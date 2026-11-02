@@ -10,6 +10,10 @@ export interface LogFields {
   durationMs?: number;
   code?: string;
   errorName?: string;
+  /** Job counters (counts only — never amounts). */
+  users?: number;
+  series?: number;
+  prunedAudit?: number;
 }
 
 type Level = 'info' | 'warn' | 'error';

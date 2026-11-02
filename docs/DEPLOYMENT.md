@@ -85,6 +85,8 @@ Both deploy workflows use concurrency groups, so deploys never overlap.
 - **Statement size:** imports are capped at 3,000 rows and 5 MB. On the Free plan's 10 ms CPU limit, files over roughly 800 rows can fail with Cloudflare's CPU-limit error (ARCHITECTURE §4.2), so import monthly or quarterly statements.
 - **R2:** original statements and short-lived `preview.json` files live under `u/{userId}/imports/…`. Both stay private and are only served through the authenticated API.
 
+- **Cron:** production runs one daily trigger (`30 20 * * *` UTC = 02:00 IST) to refresh recurring payments and prune undo history older than 180 days. Preview has no trigger, to stay inside Free's 5 triggers per account. Locally: `pnpm --filter @kharcha/api exec wrangler dev --test-scheduled`, then `curl "http://localhost:8787/__scheduled?cron=30+20+*+*+*"`.
+
 ## 8. Migrations and rollback
 
 - Migrations are forward-only and run **before** the new code deploys, so each one must work with the currently deployed Worker (expand/contract, DATA_MODEL §7).
@@ -102,5 +104,7 @@ cp apps/api/.dev.vars.example apps/api/.dev.vars
 pnpm db:migrate:local
 pnpm dev            # Vite on :5173 (proxies /api) + wrangler dev on :8787
 ```
+
+Demo data: open the app once (so the dev user exists), then `pnpm seed:demo` (12 months, about 570 transactions) or `pnpm seed:demo --months 24 --scale 5` for performance work. It's idempotent (fixed ids). Demo accounts have no last-4 digits, so they never trigger transfer hints in imports.
 
 Local auth uses the dev bypass (`AUTH_MODE=dev`, localhost only) as `dev@kharcha.local`.

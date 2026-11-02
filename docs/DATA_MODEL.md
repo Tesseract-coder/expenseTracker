@@ -237,11 +237,11 @@ Unique: `(user_id, category_id, IFNULL(month,'*'))`. A month-specific row overri
 
 ### recurring_series (cache, rebuilt by job)
 
-`id, user_id, counterparty_id, category_id, cadence ('weekly'|'monthly'|'quarterly'|'yearly'), typical_amount_paise, amount_tolerance_pct, last_date, next_expected_date, occurrences, status ('active'|'new'|'price_changed'|'stopped'), dismissed INTEGER, updated_at`.
+`id, user_id, counterparty_id, category_id, cadence ('weekly'|'monthly'|'quarterly'|'yearly'), typical_amount_paise, last_amount_paise (Phase 4, migration 0002), amount_tolerance_pct, last_date, next_expected_date, occurrences, status ('active'|'new'|'price_changed'|'stopped'), dismissed INTEGER, updated_at`. The cache is rebuilt per user (delete + `INSERT … SELECT FROM json_each`). Dismissals carry over by (counterparty, cadence). The settings key `recurring_refreshed_at` records the last build.
 
 ### settings
 
-`user_id, key, value(JSON), PK(user_id, key)`. Keys: `year_mode ('calendar'|'fy')`, `targets {savingsRate, needs, wants, savings, emergencyMonths}`, `emergency_fund_paise`, `privacy_blur_default`, `atm_as_spend`, `ai_enabled`, `last_account_id`, `theme`.
+`user_id, key, value(JSON), PK(user_id, key)`. Phase 4 reads and writes `year_mode`, `targets` (adds `investmentRate`; stored targets are merged over defaults) and `emergency_fund_paise` through `GET/PATCH /api/settings`. Keys: `year_mode ('calendar'|'fy')`, `targets {savingsRate, needs, wants, savings, emergencyMonths}`, `emergency_fund_paise`, `privacy_blur_default`, `atm_as_spend`, `ai_enabled`, `last_account_id`, `theme`.
 
 ### audit_log
 
@@ -259,34 +259,23 @@ Index `(user_id, batch_id)` and `(user_id, created_at)`. Entries older than 180 
 
 Category actions store `before`/`after` as `{categoryId, categorizedBy, ruleId, learnedLabelId, confidence, reason, isSplit, splits?}`. Bulk rows are written with `INSERT … SELECT json_object(…)`, and their ids are `lower(hex(randomblob(16)))`. Undo restores a row only while it still holds `after.categoryId`. `learn_label` stores the previous label row (or null, which means delete on undo).
 
-## 4. Reporting view: `v_ledger` (added in Phase 4)
+## 4. Reporting view: `v_ledger` (Phase 4, `migrations/0003_v_ledger.sql`)
 
-One row per categorized amount. Splits are exploded, and transfers are kept but flagged.
+One row per categorized amount: split parts are exploded, transfers are kept with `kind = 'transfer'`. Columns: `user_id, txn_id, account_id, txn_date, week_start, dow, direction, counterparty_id, category_id, group_id (parent or self), amount_paise, kind, signed_paise, spend_paise`.
 
-```sql
-CREATE VIEW v_ledger AS
-SELECT t.user_id, t.id AS txn_id, t.account_id, t.txn_date, t.week_start, t.dow,
-       t.direction, t.counterparty_id,
-       COALESCE(s.category_id, t.category_id)       AS category_id,
-       COALESCE(s.amount_paise, t.amount_paise)     AS amount_paise,
-       c.type                                       AS category_type,
-       COALESCE(c.parent_id, c.id)                  AS group_id,
-       CASE WHEN c.type = 'transfer' THEN 1 ELSE 0 END AS excluded,
-       -- signed contribution to "spend" for expense categories (refunds reduce spend)
-       CASE WHEN c.type IN ('expense_need','expense_want')
-            THEN CASE t.direction WHEN 'out' THEN 1 ELSE -1 END * COALESCE(s.amount_paise, t.amount_paise)
-            ELSE 0 END                              AS spend_paise
-FROM transactions t
-LEFT JOIN transaction_splits s ON s.transaction_id = t.id AND t.is_split = 1
-JOIN categories c ON c.id = COALESCE(s.category_id, t.category_id);
-```
+- `kind` is `uncategorized` for the system Uncategorized category, otherwise derived from the category type: `need` (expense_need), `want` (expense_want), `income`, `investment` or `transfer`.
+- `signed_paise` is +amount for money in and −amount for money out.
+- `spend_paise`: for needs and wants, out = +amount and in = −amount (refunds reduce spend). For uncategorized rows, out = +amount and in = 0. Everything else is 0.
 
 Report formulas (period P):
 
-- **Income** = Σ amount where `category_type='income' AND direction='in'`
-- **Spend** = Σ `spend_paise` (needs + wants, net of refunds)
-- **Invested** = Σ out − Σ in where `category_type='investment'` (redemptions net off)
-- **Net savings** = Income − Spend. **Savings rate** = Net savings / Income (it includes invested money, consistent with the spec's (income − needs − wants)/income).
+- **Income** = Σ `signed_paise` where `kind = 'income'` (net of income reversals)
+- **Spend** = Σ `spend_paise` (needs + wants net of refunds, plus uncategorized outflow)
+- **Invested** = −Σ `signed_paise` where `kind = 'investment'` (redemptions net off)
+- **Net savings** = Income − Spend. **Savings rate** = Net savings / Income. Invested money is part of savings, consistent with the spec's (income − needs − wants) / income.
+- **Uncategorized income** (reported separately) = Σ amount where `kind = 'uncategorized' AND direction = 'in'`.
+
+The view is read-only and has no indexes of its own: queries filter `transactions` through it on `(user_id, txn_date)`.
 
 ## 5. Dedup fingerprint
 
@@ -323,5 +312,6 @@ fingerprint = 'f1' + murmur3_x86_128_hex(
 - 2026-11-01: ATM = transfer to Cash; refunds = negative spend; Workers Free plan; React 19.
 - 2026-11-01 (Phase 0): added `categories.slug`; FTS5 and `v_ledger` deferred to the phases that use them.
 - 2026-11-01 (Phase 2): fingerprints switched to MurmurHash3-128 (`f1` prefix) before any production data existed. Preview payloads live in R2 (`preview.json`) between preview and commit. `imports.parser_profile_id` stores the built-in profile id or a saved profile id.
+- 2026-11-02 (Phase 4): migration `0002` adds `recurring_series.last_amount_paise` and an index on `recurring_series.counterparty_id`. Migration `0003` (hand-written) creates the `v_ledger` view. Budgets may only target spending categories or groups.
 - 2026-11-02 (Phase 3): no schema change. Imports now set `channel`, `vpa`, `ifsc_prefix`, `counterparty_id`, `rule_id`/`learned_label_id`, `confidence` and `categorization_reason`, and fill `ref_no` from the narration when the statement has no ref column. An accepted ATM transfer adds a Cash-account `in` leg with fingerprint `atm:<bank row fingerprint>` and the same `import_id`/`transfer_group_id`. A `categorized_by='keyword'` reason of `keyword:channel:<ch>` means a channel fallback (ATM, interest, charges).
 - 2026-11-01 (Phase 1): every user gets a seeded **Cash** account on first login. Manual transactions have `channel = NULL`, `source = 'manual'`, `categorized_by = 'manual'` (or `'none'` → Uncategorized). Balances count only transactions dated on/after `opening_balance_date`. Category merge drops source budgets that collide with a target budget for the same month. Recategorizations write `audit_log` rows (`recategorize`); deletes write full snapshots (`delete_txn`) for undo.

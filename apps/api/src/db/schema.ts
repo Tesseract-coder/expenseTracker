@@ -379,6 +379,7 @@ export const recurringSeries = sqliteTable(
     categoryId: text('category_id').references(() => categories.id, { onDelete: 'set null' }),
     cadence: text('cadence', { enum: RECURRING_CADENCES }).notNull(),
     typicalAmountPaise: integer('typical_amount_paise').notNull(),
+    lastAmountPaise: integer('last_amount_paise'),
     amountTolerancePct: integer('amount_tolerance_pct').notNull().default(10),
     lastDate: text('last_date').notNull(),
     nextExpectedDate: text('next_expected_date'),
@@ -389,6 +390,7 @@ export const recurringSeries = sqliteTable(
   },
   (t) => [
     index('recurring_series_user_next_idx').on(t.userId, t.nextExpectedDate),
+    index('recurring_series_counterparty_idx').on(t.counterpartyId),
     check('recurring_series_cadence_ck', inList('cadence', RECURRING_CADENCES)),
     check('recurring_series_status_ck', inList('status', RECURRING_STATUSES)),
     check('recurring_series_dismissed_ck', bool('dismissed')),

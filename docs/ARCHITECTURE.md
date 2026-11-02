@@ -177,15 +177,39 @@ manual override (never touched) → user rules (priority asc) → learned labels
 
 ID lists are passed to SQL as one JSON parameter (`in (select value from json_each(?))`, `db/batch.ts#inJson`) to stay under D1's 100-bound-parameter limit. Validation errors return `400 validation_error` with `issues[{path, message}]`, which forms map to fields.
 
-## 5. Reports architecture
+## 5. Reports architecture (Phase 4, implemented)
 
-All reports read from `v_ledger`. There is one row per categorized money movement, with splits exploded and transfers flagged. See DATA_MODEL.md §4.
+All reports read the **`v_ledger`** view (`migrations/0003_v_ledger.sql`, DATA_MODEL §4). It has one row per categorized amount, with split parts exploded and `kind` set to income, need, want, investment, transfer or uncategorized. Every aggregation runs in SQL with `GROUP BY`; the Worker only shapes results.
 
-- Totals by type: `SUM(CASE ...)` grouped by `category_type`.
-- Trends: `GROUP BY strftime('%Y-%m', txn_date)` for months. Weeks use a precomputed `week_start` column (Monday, IST), because SQLite's `%W` is Monday-based but its year boundaries are awkward. The FY label is computed in SQL as `CASE WHEN month>=4 THEN year ELSE year-1 END`.
-- Heatmap, day-of-week and week-of-month come from columns stored on `transactions` at write time (`dow`, `week_start`), which avoids repeated date math.
-- **Recurring detection** runs in `shared` over per-counterparty series (fetched per counterparty with SQL `GROUP BY`). It runs on a daily cron and after each import, and results are cached in `recurring_series`.
-- **Health score** is a pure function in `shared` that takes aggregated monthly figures (`MonthlyAggregate[]`, about 12 rows), so it's deterministic and table-tested. The API just fetches the aggregates.
+- **Totals:**
+  - Income = Σ `signed_paise` of income rows.
+  - Spend = needs + wants + uncategorized outflow, net of refunds.
+  - Invested = −Σ `signed_paise` of investment rows, so redemptions net off.
+  - Net savings = income − spend; savings rate = net savings ÷ income.
+  - Transfers (self, card bill, ATM → Cash) are always excluded.
+  - Uncategorized _inflow_ is reported separately and not counted as income until labelled.
+- **Buckets:** day = `txn_date`; week = the stored `week_start` (Monday, IST); month = `substr(txn_date, 1, 7)`; year = calendar or FY (computed in SQL, labelled `FY 2026-27`). The API gap-fills empty buckets with zeros so charts never skip periods.
+- **When:** daily spend (heatmap), weekday averages (total ÷ number of that weekday in the range), week of month = `(day + 6) / 7`, top days with their biggest transactions, top weeks and months.
+- **Where:** top categories, payees and single spends, plus category changes vs the comparison period (`shareChanges`; noise under ₹500 is dropped).
+- **Recurring detection** is pure (`detectRecurring` in shared):
+  - Payments to one counterparty are merged per day and kept when within 15% of the median amount (the latest payment is always kept, so a price change shows).
+  - The median interval is snapped to weekly, monthly, quarterly or yearly with slack; at least 70% of intervals must be regular.
+  - Status is active, new, price changed (latest payment more than 10% off), or stopped (overdue by half a cycle plus slack).
+  - Results are cached in `recurring_series`. The cache rebuilds on read when any transaction changed since the last build or it's older than 12 h, and also in the **daily cron**. Dismissals survive rebuilds.
+- **Budgets:** monthly per category or group. A `month` row overrides the default (`month IS NULL`). Spend comes from one grouped query for any number of months (`budgetsForMonths`). Projection uses the run rate (spent ÷ elapsed days × days in month). States: ok, warning at ≥80%, over at ≥100%. Only spending categories can have budgets.
+- **Health score:** pure `computeHealth` over ≤12 `MonthlyAggregate` rows (leading empty months trimmed). It's deterministic and table-tested; see §9.31 for the weights.
+- **Exports** are built **in the browser**: the API returns JSON rows (split parts as separate rows, ≤20,000) and the lazily loaded SheetJS entry writes the XLSX. Every text cell is guarded against formula injection. The report workbook has the sheets Summary, By category, By counterparty and Transactions. CSV is RFC 4180 with a BOM. Printing uses print CSS (navigation hidden, privacy blur off).
+- **Cron:** `scheduled` runs `runDailyJobs` at 02:00 IST (`30 20 * * *` UTC) to rebuild recurring caches and prune `audit_log` rows older than 180 days. Production only; preview has no trigger.
+
+**Charts** follow the dataviz method:
+
+- A validated categorical palette (slots 1–6, light and dark steps each validated against the card surface), one sequential blue ramp for the heatmap, and reserved status colors that always ship with an icon and label.
+- Bars ≤ 24px with 4px rounded data ends, 2px lines, hairline solid grids.
+- A tooltip on every plot, a legend for two or more series, and a table view on every chart.
+- Text in text tokens, never series colors.
+- Group colors follow the group (sort order), never its rank.
+- Spend share uses a tall segmented bar plus a ranked list instead of a donut (§9.24).
+- Recharts and SheetJS are lazy chunks: Reports, the dashboard trend chart and exports load them on demand.
 
 ## 6. Environments
 
@@ -238,3 +262,15 @@ All reports read from `v_ledger`. There is one row per categorized money movemen
 21. **Phase 3: archived seed categories.** A keyword pointing at an archived (or merged-away) seeded category doesn't match, and the row stays Uncategorized. Categories carry no `merged_into` pointer yet.
 22. **Phase 3: regex safety without REGEXP.** D1 has no `REGEXP`, so regex conditions run in the Worker after a SQL prefilter on the other conditions. Patterns pass a conservative static check, and inputs are capped at 500 characters.
 23. **Phase 3: rate limits for chunked jobs.** Re-run and apply-rule loop in 250-row requests, which keeps each under the Free CPU budget; only the first request of a run counts against the `bulk` limit. The local dev limiter is set to 1,000/min because every Playwright test shares one dev user; preview and production keep 30/min.
+24. **Phase 4: no donut.** The spec asks for a donut of spend by group. Donuts are hard to read for close values, so the dashboard uses a tall segmented bar (≤ 6 parts, shares printed only where they fit) plus a ranked, tappable list that drills into categories and then transactions. Same information, easier to compare.
+25. **Phase 4: uncategorized money.** Uncategorized outflow counts as spend (conservative), but in neither needs nor wants. Uncategorized inflow is left out of income and shown as "₹X received is uncategorized — label it", so an unlabelled salary credit can't hide or distort the savings rate.
+26. **Phase 4: exports in the browser.** SheetJS never runs in the Worker (Free CPU limit, D4). The Worker returns JSON rows and the browser writes the file. Text cells starting with `=`, `+`, `-`, `@`, tab or CR are prefixed with `'`, because bank narrations are untrusted input (formula injection). Exports cap at 20,000 rows and say so when truncated.
+27. **Phase 4: recurring cache.** Detection over ~13 months of one user's payments is cheap, but caching keeps the list fast and statuses stable. The cache rebuilds when stale (any transaction change, or 12 h old) and nightly. Series ids change on rebuild; the UI always works from the latest list.
+28. **Phase 4: investment-rate target.** The spec lists an investment rate without a target. The default target is **15%** of income, editable in Targets with the other targets (savings 20%, 50/30/20 split, 6 months emergency fund).
+29. **Phase 4: health score edge cases.**
+    - Components without enough data (no income, under 6 months for the trend, under 4 months with income for lifestyle creep, no budgets, no emergency fund) are marked "not enough data" and excluded from the weighted average, so the remaining weights renormalize.
+    - An empty history never scores well.
+    - Suggestions round to whole rupees.
+    - For the period that contains today, only months up to today count; past and future periods use their own months.
+30. **Phase 4: cron triggers.** Workers Free allows 5 cron triggers per account. Only production (and local dev) run the daily job; preview doesn't. The job logs only counts.
+31. **Phase 4: health weights.** Savings rate 30, investment rate 15, needs/wants/savings split 15, budget adherence 15, spending trend 10, lifestyle creep 10, emergency fund 10. Bands: Excellent ≥ 80, Good ≥ 60, Needs attention ≥ 40, otherwise Off-track. The split scores 100 − 200 × the summed overshoot, i.e. needs over target + wants over target + savings under target.

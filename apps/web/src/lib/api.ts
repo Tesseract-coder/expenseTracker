@@ -49,6 +49,8 @@ export const apiPost = <T extends z.ZodType>(path: string, body: unknown, schema
   request('POST', path, schema, body);
 export const apiPatch = <T extends z.ZodType>(path: string, body: unknown, schema: T) =>
   request('PATCH', path, schema, body);
+export const apiPut = <T extends z.ZodType>(path: string, body: unknown, schema: T) =>
+  request('PUT', path, schema, body);
 /** Multipart upload; the browser sets the boundary header. */
 export const apiUpload = <T extends z.ZodType>(path: string, form: FormData, schema: T) =>
   request('POST', path, schema, form);
