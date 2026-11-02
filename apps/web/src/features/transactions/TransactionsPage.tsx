@@ -1,4 +1,4 @@
-import { List, Search, SlidersHorizontal, X } from 'lucide-react';
+import { CheckSquare, List, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { periodRange, toIstDate, previousPeriodRange } from '@kharcha/shared';
@@ -13,6 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDayHeader } from '@/lib/format';
 import { categoryLabel } from '@/lib/categories';
 import { CategoryPicker } from '@/features/categories/CategoryPicker';
+import { useLabelSheet } from '@/features/categorize/LabelSheet';
+import { SelectionBar } from '@/features/categorize/SelectionBar';
 import { groupByDay } from './groupByDay';
 import { TransactionRow } from './TransactionRow';
 import { useTransactionSheet } from './TransactionSheet';
@@ -33,6 +35,15 @@ export function TransactionsPage() {
   const debounced = useDebounced(search, 300);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const { openEdit } = useTransactionSheet();
+  const { openLabel } = useLabelSheet();
+  const [selection, setSelection] = useState<Set<string> | null>(null);
+  const toggle = (id: string) =>
+    setSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   useEffect(() => setFilter('q', debounced.trim() || undefined), [debounced, setFilter]);
 
@@ -100,6 +111,13 @@ export function TransactionsPage() {
             <X aria-hidden className="size-4" /> Clear
           </Chip>
         )}
+        <Chip
+          selected={selection !== null}
+          onClick={() => setSelection(selection ? null : new Set())}
+          aria-label="Select transactions"
+        >
+          <CheckSquare aria-hidden className="size-4" /> Select
+        </Chip>
       </div>
 
       {list.isPending ? (
@@ -149,7 +167,11 @@ export function TransactionsPage() {
                     txn={t}
                     categoriesById={categoriesById}
                     accountsById={accountsById}
-                    onOpen={openEdit}
+                    selectionMode={selection !== null}
+                    selected={selection?.has(t.id) ?? false}
+                    onOpen={(txn) => (selection ? toggle(txn.id) : openEdit(txn))}
+                    onSwipe={(txn) => openLabel({ txn })}
+                    onLongPress={(txn) => setSelection(new Set([txn.id]))}
                   />
                 ))}
               </ul>
@@ -159,6 +181,15 @@ export function TransactionsPage() {
             {isFetchingNextPage && <Skeleton className="h-16 w-full" />}
           </div>
         </div>
+      )}
+
+      {selection && (
+        <SelectionBar
+          ids={[...selection]}
+          direction={rows.find((r) => selection.has(r.id))?.direction ?? 'out'}
+          onCancel={() => setSelection(null)}
+          onDone={() => setSelection(null)}
+        />
       )}
 
       <FilterSheet

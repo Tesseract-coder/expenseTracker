@@ -95,9 +95,11 @@ describe('preview + commit', () => {
     expect(txns.filter((t: any) => t.amountPaise === 2000)).toHaveLength(2);
     expect(txns.every((t: any) => t.source === 'import')).toBe(true);
     const ids = await categoryIdBySlug();
+    // Phase 3: the keyword engine categorizes on import and records why.
     expect(txns.find((t: any) => t.amountPaise === 9500000)).toMatchObject({
-      categoryId: ids.uncategorized,
-      categorizedBy: 'none',
+      categoryId: ids.salary,
+      categorizedBy: 'keyword',
+      categorizationReason: 'keyword:salary',
     });
 
     const imp = (await getJson('/api/imports')).body.imports.find((i: any) => i.id === id);
@@ -261,12 +263,16 @@ describe('transfer detection', () => {
     const autopay = preview.rows.find((r: any) => r.amountPaise === 1850000);
     expect(autopay.transfer).toMatchObject({ kind: 'cc_bill_payment', counterpartTxnId: null });
 
-    // Not accepted → stays Uncategorized.
+    // Not accepted → not linked as a transfer, but the keyword engine still files it as a card bill.
     await postJson(`/api/imports/${up.body.importId}/commit`, {});
     const ids = await categoryIdBySlug();
     const txn = (await getJson(`/api/transactions?importId=${up.body.importId}&q=AUTOPAY`)).body
       .transactions[0];
-    expect(txn.categoryId).toBe(ids.uncategorized);
+    expect(txn).toMatchObject({
+      categoryId: ids.cc_bill_payment,
+      categorizedBy: 'keyword',
+      transferGroupId: null,
+    });
   });
 
   it('pairs savings → savings self transfers', async () => {

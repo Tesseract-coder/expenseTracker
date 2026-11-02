@@ -1,6 +1,6 @@
-import { ChevronRight, FileUp, History, Shapes, Wallet } from 'lucide-react';
+import { ChevronRight, FileUp, History, Inbox, Shapes, Users, Wallet, Wand2 } from 'lucide-react';
 import { Link } from 'react-router';
-import { useCategories, useHealth, useMe } from '@/app/queries';
+import { useCategories, useHealth, useInboxCount, useMe } from '@/app/queries';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePreferences, type ThemePref } from '@/lib/preferences';
@@ -17,21 +17,30 @@ export function MorePage() {
   const health = useHealth();
   const me = useMe();
   const categories = useCategories();
+  const inboxCount = useInboxCount();
 
   return (
     <div className="flex flex-col gap-4">
       <Card>
         <ul className="divide-y divide-border">
           {[
+            { to: '/inbox', label: 'Needs labelling', icon: Inbox, badge: inboxCount.data },
             { to: '/more/accounts', label: 'Accounts', icon: Wallet },
             { to: '/more/categories', label: 'Categories', icon: Shapes },
+            { to: '/more/rules', label: 'Rules & learned labels', icon: Wand2 },
+            { to: '/more/payees', label: 'Payees', icon: Users },
             { to: '/import', label: 'Import statement', icon: FileUp },
             { to: '/more/imports', label: 'Import history', icon: History },
-          ].map(({ to, label, icon: Icon }) => (
+          ].map(({ to, label, icon: Icon, badge }) => (
             <li key={to}>
               <Link to={to} className="flex min-h-14 items-center gap-3 px-4 text-sm font-medium">
                 <Icon aria-hidden className="size-5 text-muted-foreground" />
                 <span className="flex-1">{label}</span>
+                {badge ? (
+                  <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                    {badge}
+                  </span>
+                ) : null}
                 <ChevronRight aria-hidden className="size-5 text-muted-foreground" />
               </Link>
             </li>

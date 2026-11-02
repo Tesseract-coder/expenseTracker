@@ -52,13 +52,25 @@ export const previewRowSchema = parsedRowSchema.extend({
     .nullable(),
   transfer: z
     .object({
-      kind: z.enum(['self_transfer', 'cc_bill_payment']),
+      kind: z.enum(['self_transfer', 'cc_bill_payment', 'atm_cash']),
       confidence: z.enum(['high', 'medium']),
       reason: z.string(),
       counterpartTxnId: z.string().nullable(),
       counterpartAccountId: z.string().nullable(),
     })
     .nullable(),
+  /** Normalized payee (Phase 3). */
+  payee: z.string().nullable().default(null),
+  /** Category the engine would assign if no transfer is accepted. */
+  proposal: z
+    .object({
+      categoryId: z.string(),
+      categorizedBy: z.enum(['rule', 'learned', 'keyword']),
+      reason: z.string(),
+      confidence: z.number(),
+    })
+    .nullable()
+    .default(null),
 });
 export type PreviewRow = z.infer<typeof previewRowSchema>;
 
@@ -94,6 +106,8 @@ export const importCommitResponseSchema = z.object({
   inserted: z.number().int(),
   skippedDuplicates: z.number().int(),
   transfersLinked: z.number().int(),
+  /** Inserted rows the engine categorized (rule / learned / keyword). */
+  categorized: z.number().int(),
 });
 
 export const importUploadResponseSchema = z.object({

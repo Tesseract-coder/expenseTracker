@@ -46,8 +46,12 @@ test.describe('statement import', () => {
     await expect(page.getByRole('heading', { name: 'Imported 8 transactions' })).toBeVisible();
 
     await page.getByRole('link', { name: 'View transactions' }).click();
-    await expect(page.getByRole('button', { name: /CHAI POINT/ })).toHaveCount(2);
-    await expect(page.getByRole('button', { name: /AUTOPAY/ })).toContainText(
+    // Phase 3: rows show the normalized payee and the engine's category.
+    await expect(page.getByRole('button', { name: /Chai Point/ })).toHaveCount(2);
+    await expect(page.getByRole('button', { name: /Chai Point/ }).first()).toContainText(
+      'Restaurants & dining',
+    );
+    await expect(page.getByRole('button', { name: /Autopay/i })).toContainText(
       'Credit card bill payment',
     );
 

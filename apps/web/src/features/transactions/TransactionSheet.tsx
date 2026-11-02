@@ -29,6 +29,8 @@ import { ApiRequestError, errorMessage } from '@/lib/api';
 import { categoryLabel } from '@/lib/categories';
 import { cn } from '@/lib/utils';
 import { CategoryPicker } from '@/features/categories/CategoryPicker';
+import { explainCategorization } from '@/features/categorize/explain';
+import { useLabelSheet } from '@/features/categorize/LabelSheet';
 
 const LAST_ACCOUNT_KEY = 'kharcha.lastAccountId';
 
@@ -100,6 +102,7 @@ function TransactionForm({ txn, onDone }: { txn: TransactionDto | null; onDone: 
   const update = useUpdateTransaction();
   const remove = useDeleteTransaction();
   const undo = useUndo();
+  const { openLabel } = useLabelSheet();
 
   const activeAccounts = (accounts.data ?? []).filter((a) => a.active || a.id === txn?.accountId);
   const rememberedAccount = localStorage.getItem(LAST_ACCOUNT_KEY);
@@ -199,11 +202,17 @@ function TransactionForm({ txn, onDone }: { txn: TransactionDto | null; onDone: 
                 txn.splits.map((s) => ({ categoryId: s.categoryId, amountPaise: s.amountPaise })),
               ));
         const { categoryId: cat, splits: sp, ...rest } = parsed.data;
-        await update.mutateAsync({
+        const { transaction: saved } = await update.mutateAsync({
           id: txn.id,
           patch: { ...rest, ...(categoryChanged ? { categoryId: cat, splits: sp } : {}) },
         });
         toast.success('Transaction updated');
+        // Offer to remember the new category for this payee (spec §6.3).
+        if (categoryChanged && !split && cat && saved.counterparty) {
+          onDone();
+          openLabel({ txn: saved, categoryId: cat, alreadyApplied: true });
+          return;
+        }
       } else {
         await create.mutateAsync(parsed.data);
         localStorage.setItem(LAST_ACCOUNT_KEY, parsed.data.accountId);
@@ -321,6 +330,9 @@ function TransactionForm({ txn, onDone }: { txn: TransactionDto | null; onDone: 
               Split
             </Button>
           </div>
+          {txn && categoryId === initialCategory && explainCategorization(txn) && (
+            <p className="text-xs text-muted-foreground">Why: {explainCategorization(txn)}</p>
+          )}
         </Field>
       ) : (
         <fieldset className="flex flex-col gap-2">

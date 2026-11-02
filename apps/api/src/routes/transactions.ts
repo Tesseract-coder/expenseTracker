@@ -1,6 +1,11 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
+  bulkCategoryRequestSchema,
+  counterpartyMergeSchema,
+  counterpartyUpdateSchema,
+  labelImpactQuerySchema,
+  labelRequestSchema,
   transactionCreateSchema,
   transactionListQuerySchema,
   transactionUpdateSchema,
@@ -8,6 +13,9 @@ import {
 import type { AppEnv } from '../env';
 import { getDb } from '../db/client';
 import { zv } from '../lib/validate';
+import { rateLimit } from '../middleware/rateLimit';
+import { mergeCounterparty, renameCounterparty } from '../services/counterparties';
+import { bulkCategorize, labelImpact, labelTransaction } from '../services/labels';
 import {
   createTransaction,
   deleteTransaction,
@@ -15,9 +23,9 @@ import {
   listTags,
   listTransactions,
   searchCounterparties,
-  undoBatch,
   updateTransaction,
 } from '../services/transactions';
+import { undoBatch } from '../services/undo';
 
 export const transactionRoutes = new Hono<AppEnv>()
   .get('/', zv('query', transactionListQuerySchema), async (c) =>
@@ -48,10 +56,40 @@ export const transactionRoutes = new Hono<AppEnv>()
   .delete('/:id', async (c) => {
     const undoToken = await deleteTransaction(getDb(c.env.DB), c.get('user').id, c.req.param('id'));
     return c.json({ undoToken });
-  });
+  })
+  .post('/bulk-category', rateLimit('bulk'), zv('json', bulkCategoryRequestSchema), async (c) =>
+    c.json(await bulkCategorize(getDb(c.env.DB), c.env.DB, c.get('user').id, c.req.valid('json'))),
+  )
+  .get('/:id/category/impact', zv('query', labelImpactQuerySchema), async (c) =>
+    c.json(
+      await labelImpact(
+        getDb(c.env.DB),
+        c.env.DB,
+        c.get('user').id,
+        c.req.param('id'),
+        c.req.query() as never,
+      ),
+    ),
+  )
+  .patch('/:id/category', zv('json', labelRequestSchema), async (c) =>
+    c.json(
+      await labelTransaction(
+        getDb(c.env.DB),
+        c.env.DB,
+        c.get('user').id,
+        c.req.param('id'),
+        c.req.valid('json'),
+      ),
+    ),
+  );
 
-export const undoRoutes = new Hono<AppEnv>().post('/:token', async (c) => {
-  const restored = await undoBatch(getDb(c.env.DB), c.get('user').id, c.req.param('token'));
+export const undoRoutes = new Hono<AppEnv>().post('/:token', rateLimit('bulk'), async (c) => {
+  const restored = await undoBatch(
+    getDb(c.env.DB),
+    c.env.DB,
+    c.get('user').id,
+    c.req.param('token'),
+  );
   return c.json({ restored });
 });
 
@@ -59,15 +97,41 @@ export const tagRoutes = new Hono<AppEnv>().get('/', async (c) =>
   c.json({ tags: await listTags(getDb(c.env.DB), c.get('user').id) }),
 );
 
-export const counterpartyRoutes = new Hono<AppEnv>().get(
-  '/',
-  zv('query', z.object({ q: z.string().trim().max(80).optional() })),
-  async (c) =>
+export const counterpartyRoutes = new Hono<AppEnv>()
+  .get(
+    '/',
+    zv(
+      'query',
+      z.object({
+        q: z.string().trim().max(80).optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(20),
+      }),
+    ),
+    async (c) => {
+      const { q, limit } = c.req.valid('query');
+      return c.json({
+        counterparties: await searchCounterparties(getDb(c.env.DB), c.get('user').id, q, limit),
+      });
+    },
+  )
+  .patch('/:id', zv('json', counterpartyUpdateSchema), async (c) =>
     c.json({
-      counterparties: await searchCounterparties(
+      counterparty: await renameCounterparty(
         getDb(c.env.DB),
         c.get('user').id,
-        c.req.valid('query').q,
+        c.req.param('id'),
+        c.req.valid('json').displayName,
       ),
     }),
-);
+  )
+  .post('/:id/merge', rateLimit('bulk'), zv('json', counterpartyMergeSchema), async (c) =>
+    c.json({
+      moved: await mergeCounterparty(
+        getDb(c.env.DB),
+        c.env.DB,
+        c.get('user').id,
+        c.req.param('id'),
+        c.req.valid('json').targetId,
+      ),
+    }),
+  );

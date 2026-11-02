@@ -33,7 +33,26 @@ import {
   parserProfileListResponseSchema,
   parserProfileResponseSchema,
   type ColumnMapping,
+  bulkCategoryResponseSchema,
+  categorizationRunResponseSchema,
+  type CategorizationRunResponse,
+  counterpartyMergeResponseSchema,
+  inboxCountResponseSchema,
+  inboxResponseSchema,
+  labelImpactResponseSchema,
+  type LabelRequest,
+  labelResponseSchema,
+  learnedLabelListResponseSchema,
+  learnedLabelResponseSchema,
+  type RuleConditions,
+  type RuleCreate,
+  ruleListResponseSchema,
+  ruleResponseSchema,
+  ruleTestResponseSchema,
+  type RuleUpdate,
+  counterpartyDtoSchema,
 } from '@kharcha/shared';
+import { z } from 'zod';
 import { apiDelete, apiGet, apiPatch, apiPost, apiUpload } from '@/lib/api';
 
 export type TxnFilters = Omit<TransactionListQuery, 'cursor' | 'limit'>;
@@ -49,6 +68,15 @@ export const queryKeys = {
   transactionList: (f: TxnFilters) => ['transactions', 'list', f] as const,
   imports: ['imports'] as const,
   parserProfiles: ['parser-profiles'] as const,
+  inbox: ['inbox'] as const,
+  rules: ['rules'] as const,
+  learnedLabels: ['learned-labels'] as const,
+  labelImpact: (
+    txnId: string,
+    categoryId: string,
+    matchDirection: boolean,
+    matchAccount: boolean,
+  ) => ['label-impact', txnId, categoryId, matchDirection, matchAccount] as const,
 };
 
 export const useHealth = () =>
@@ -90,14 +118,11 @@ export const useTags = () =>
     select: (d) => d.tags,
   });
 
-export const useCounterparties = (q: string) =>
+export const useCounterparties = (q: string, limit = 20) =>
   useQuery({
-    queryKey: queryKeys.counterparties(q),
+    queryKey: [...queryKeys.counterparties(q), limit],
     queryFn: () =>
-      apiGet(
-        `/counterparties${q ? `?q=${encodeURIComponent(q)}` : ''}`,
-        counterpartyListResponseSchema,
-      ),
+      apiGet(`/counterparties${toQueryString({ q, limit })}`, counterpartyListResponseSchema),
     select: (d) => d.counterparties,
     staleTime: 60_000,
   });
@@ -134,13 +159,17 @@ function useInvalidate() {
     Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey })));
 }
 
-/** Any transaction write can change balances, tags and counterparties. */
+/** Any transaction write can change balances, tags, counterparties and the inbox. */
 const TXN_KEYS = [
   queryKeys.transactions,
   queryKeys.accounts,
   queryKeys.tags,
   ['counterparties'],
+  queryKeys.inbox,
+  ['label-impact'],
 ] as const;
+/** Category changes also move rule/learned-label hit counts. */
+const CATEGORY_KEYS = [...TXN_KEYS, queryKeys.rules, queryKeys.learnedLabels] as const;
 
 export function useCreateTransaction() {
   const invalidate = useInvalidate();
@@ -195,7 +224,7 @@ export function useUndo() {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (token: string) => apiPost(`/undo/${token}`, {}, undoResponseSchema),
-    onSuccess: () => invalidate(...TXN_KEYS),
+    onSuccess: () => invalidate(...CATEGORY_KEYS),
   });
 }
 
@@ -300,5 +329,184 @@ export function useSaveParserProfile() {
     mutationFn: (body: { name: string; mapping: ColumnMapping; accountId: string | null }) =>
       apiPost('/parser-profiles', body, parserProfileResponseSchema),
     onSuccess: () => invalidate(queryKeys.parserProfiles, queryKeys.accounts),
+  });
+}
+
+// ---------------------------------------------------------------------------- categorization
+
+export const useInbox = (limit = 30) =>
+  useInfiniteQuery({
+    queryKey: [...queryKeys.inbox, 'list', limit],
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      apiGet(`/inbox${toQueryString({ limit, cursor: pageParam })}`, inboxResponseSchema),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+
+export const useInboxCount = () =>
+  useQuery({
+    queryKey: [...queryKeys.inbox, 'count'],
+    queryFn: () => apiGet('/inbox/count', inboxCountResponseSchema),
+    select: (d) => d.count,
+  });
+
+export const useLabelImpact = (
+  txnId: string | null,
+  categoryId: string | null,
+  matchDirection: boolean,
+  matchAccount: boolean,
+  enabled: boolean,
+) =>
+  useQuery({
+    queryKey: queryKeys.labelImpact(txnId ?? '', categoryId ?? '', matchDirection, matchAccount),
+    queryFn: () =>
+      apiGet(
+        `/transactions/${txnId}/category/impact${toQueryString({ categoryId: categoryId ?? '', matchDirection, matchAccount })}`,
+        labelImpactResponseSchema,
+      ),
+    enabled: enabled && !!txnId && !!categoryId,
+  });
+
+export function useLabelTransaction() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: LabelRequest }) =>
+      apiPatch(`/transactions/${id}/category`, body, labelResponseSchema),
+    onSuccess: () => invalidate(...CATEGORY_KEYS),
+  });
+}
+
+export function useBulkCategorize() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (body: { ids: string[]; categoryId: string }) =>
+      apiPost('/transactions/bulk-category', body, bulkCategoryResponseSchema),
+    onSuccess: () => invalidate(...CATEGORY_KEYS),
+  });
+}
+
+/** Loops a chunked server job (re-run / apply rule) until done; one undo token for the whole run. */
+async function runChunks(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<CategorizationRunResponse> {
+  let total: CategorizationRunResponse | null = null;
+  let cursor: string | undefined;
+  for (let i = 0; i < 200; i++) {
+    const r: CategorizationRunResponse = await apiPost(
+      path,
+      { ...body, cursor, batchId: total?.batchId },
+      categorizationRunResponseSchema,
+    );
+    total = total
+      ? { ...r, processed: total.processed + r.processed, changed: total.changed + r.changed }
+      : r;
+    if (!r.nextCursor) break;
+    cursor = r.nextCursor;
+  }
+  return total as CategorizationRunResponse;
+}
+
+export function useRunCategorization() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (scope: 'uncategorized' | 'all') => runChunks('/categorization/run', { scope }),
+    onSuccess: () => invalidate(...CATEGORY_KEYS),
+  });
+}
+
+export const useRules = () =>
+  useQuery({
+    queryKey: queryKeys.rules,
+    queryFn: () => apiGet('/rules', ruleListResponseSchema),
+    select: (d) => d.rules,
+  });
+
+export function useSaveRule() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (args: { id?: string; body: RuleCreate | RuleUpdate }) =>
+      args.id
+        ? apiPatch(`/rules/${args.id}`, args.body, ruleResponseSchema)
+        : apiPost('/rules', args.body, ruleResponseSchema),
+    onSuccess: () => invalidate(queryKeys.rules),
+  });
+}
+
+export function useDeleteRule() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete(`/rules/${id}`),
+    onSuccess: () => invalidate(queryKeys.rules),
+  });
+}
+
+export function useReorderRules() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (ids: string[]) => apiPost('/rules/reorder', { ids }, ruleListResponseSchema),
+    onSuccess: () => invalidate(queryKeys.rules),
+  });
+}
+
+export function useTestRule() {
+  return useMutation({
+    mutationFn: (conditions: RuleConditions) =>
+      apiPost('/rules/test', { conditions }, ruleTestResponseSchema),
+  });
+}
+
+export function useApplyRule() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => runChunks(`/rules/${id}/apply`, {}),
+    onSuccess: () => invalidate(...CATEGORY_KEYS),
+  });
+}
+
+export const useLearnedLabels = () =>
+  useQuery({
+    queryKey: queryKeys.learnedLabels,
+    queryFn: () => apiGet('/learned-labels', learnedLabelListResponseSchema),
+    select: (d) => d.labels,
+  });
+
+export function useUpdateLearnedLabel() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { categoryId?: string; enabled?: boolean } }) =>
+      apiPatch(`/learned-labels/${id}`, body, learnedLabelResponseSchema),
+    onSuccess: () => invalidate(queryKeys.learnedLabels),
+  });
+}
+
+export function useDeleteLearnedLabel() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete(`/learned-labels/${id}`),
+    onSuccess: () => invalidate(queryKeys.learnedLabels),
+  });
+}
+
+export function useRenameCounterparty() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, displayName }: { id: string; displayName: string }) =>
+      apiPatch(
+        `/counterparties/${id}`,
+        { displayName },
+        z.object({ counterparty: counterpartyDtoSchema }),
+      ),
+    onSuccess: () =>
+      invalidate(['counterparties'], queryKeys.transactions, queryKeys.learnedLabels),
+  });
+}
+
+export function useMergeCounterparty() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, targetId }: { id: string; targetId: string }) =>
+      apiPost(`/counterparties/${id}/merge`, { targetId }, counterpartyMergeResponseSchema),
+    onSuccess: () => invalidate(...CATEGORY_KEYS),
   });
 }

@@ -1,0 +1,821 @@
+{
+  "version": 1,
+  "notes": "Keyword \u2192 category slug. Matching is on whole words of the narration (and VPA). The longest matching keyword wins; ties go to the earlier entry. 'direction' omitted = both (an inbound match is a refund and nets off that category's spend). Entries with only 'channels' are fallbacks used when no keyword matches.",
+  "entries": [
+    {
+      "category": "grocery",
+      "keywords": [
+        "swiggy instamart",
+        "instamart",
+        "blinkit",
+        "grofers",
+        "zepto",
+        "zeptonow",
+        "kiranakart",
+        "bigbasket",
+        "big basket",
+        "bbnow",
+        "dmart",
+        "avenue supermarts",
+        "jiomart",
+        "jio mart",
+        "reliance fresh",
+        "reliance smart",
+        "smart bazaar",
+        "more retail",
+        "more supermarket",
+        "natures basket",
+        "spencers",
+        "star bazaar",
+        "metro cash",
+        "amazon fresh",
+        "flipkart minutes",
+        "dunzo",
+        "country delight",
+        "milkbasket",
+        "licious",
+        "freshtohome",
+        "supermarket",
+        "kirana"
+      ]
+    },
+    {
+      "category": "food_delivery",
+      "keywords": [
+        "swiggy",
+        "bundl technologies",
+        "zomato",
+        "eternal limited",
+        "eatsure",
+        "box8",
+        "faasos",
+        "magicpin"
+      ]
+    },
+    {
+      "category": "restaurants",
+      "keywords": [
+        "restaurant",
+        "restro",
+        "cafe",
+        "starbucks",
+        "tata starbucks",
+        "mcdonalds",
+        "mcdonald",
+        "hardcastle",
+        "dominos",
+        "jubilant foodworks",
+        "pizza hut",
+        "kfc",
+        "burger king",
+        "subway",
+        "haldiram",
+        "haldirams",
+        "chaayos",
+        "chai point",
+        "third wave coffee",
+        "barbeque nation",
+        "dineout",
+        "eazydiner",
+        "biryani",
+        "dhaba"
+      ]
+    },
+    {
+      "category": "online_shopping",
+      "keywords": [
+        "amazon",
+        "amazon pay",
+        "amazon seller",
+        "amzn",
+        "flipkart",
+        "meesho",
+        "snapdeal",
+        "tata cliq",
+        "tatacliq",
+        "croma",
+        "reliance digital",
+        "vijay sales",
+        "ikea",
+        "pepperfry",
+        "firstcry",
+        "decathlon",
+        "lenskart",
+        "boat lifestyle"
+      ]
+    },
+    {
+      "category": "clothing",
+      "keywords": [
+        "myntra",
+        "ajio",
+        "westside",
+        "zara",
+        "h m",
+        "hnm",
+        "uniqlo",
+        "max fashion",
+        "pantaloons",
+        "lifestyle stores",
+        "shoppers stop",
+        "trends",
+        "fabindia",
+        "bewakoof",
+        "souled store",
+        "bata",
+        "nykaa fashion"
+      ]
+    },
+    {
+      "category": "personal_care",
+      "keywords": [
+        "nykaa",
+        "purplle",
+        "mamaearth",
+        "salon",
+        "spa",
+        "barber",
+        "lakme",
+        "naturals salon",
+        "urban company",
+        "urbanclap",
+        "cult fit",
+        "cultfit",
+        "curefit",
+        "gym"
+      ],
+      "confidence": 0.7
+    },
+    {
+      "category": "entertainment",
+      "keywords": [
+        "netflix",
+        "hotstar",
+        "disney",
+        "jiohotstar",
+        "jiocinema",
+        "spotify",
+        "prime video",
+        "amazon prime",
+        "primevideo",
+        "youtube",
+        "youtube premium",
+        "google play",
+        "apple com bill",
+        "itunes",
+        "sonyliv",
+        "sony liv",
+        "zee5",
+        "gaana",
+        "wynk",
+        "bookmyshow",
+        "bigtree",
+        "pvr",
+        "inox",
+        "cinepolis",
+        "steam"
+      ]
+    },
+    {
+      "category": "hotels",
+      "keywords": [
+        "oyo",
+        "oravel",
+        "airbnb",
+        "booking com",
+        "agoda",
+        "treebo",
+        "fabhotels",
+        "taj hotels",
+        "marriott",
+        "hyatt",
+        "zostel",
+        "hotel"
+      ]
+    },
+    {
+      "category": "flight",
+      "keywords": [
+        "indigo",
+        "interglobe",
+        "air india",
+        "airindia",
+        "vistara",
+        "spicejet",
+        "akasa",
+        "akasa air",
+        "air india express",
+        "makemytrip",
+        "make my trip",
+        "goibibo",
+        "ibibo",
+        "cleartrip",
+        "yatra",
+        "easemytrip",
+        "ixigo"
+      ],
+      "confidence": 0.7
+    },
+    {
+      "category": "train",
+      "keywords": ["irctc", "indian railway", "railway", "confirmtkt", "railyatri"]
+    },
+    {
+      "category": "bus",
+      "keywords": ["redbus", "abhibus", "zingbus", "intrcity", "msrtc", "ksrtc", "volvo bus"]
+    },
+    {
+      "category": "metro",
+      "keywords": [
+        "metro rail",
+        "dmrc",
+        "delhi metro",
+        "mumbai metro",
+        "mmrda",
+        "mmopl",
+        "bmrcl",
+        "namma metro",
+        "chennai metro",
+        "hyderabad metro",
+        "pune metro",
+        "metro card"
+      ]
+    },
+    {
+      "category": "cab_auto",
+      "keywords": [
+        "uber",
+        "ola",
+        "ola cabs",
+        "ani technologies",
+        "rapido",
+        "roppen",
+        "blusmart",
+        "namma yatri",
+        "meru",
+        "auto rickshaw",
+        "quick ride",
+        "bike taxi"
+      ]
+    },
+    {
+      "category": "petrol",
+      "keywords": [
+        "indian oil",
+        "iocl",
+        "ioc",
+        "hpcl",
+        "hindustan petroleum",
+        "bpcl",
+        "bharat petroleum",
+        "shell",
+        "nayara",
+        "jio bp",
+        "jiobp",
+        "petrol",
+        "petroleum",
+        "fuel",
+        "filling station",
+        "service station"
+      ],
+      "direction": "out"
+    },
+    {
+      "category": "cng",
+      "keywords": ["cng"],
+      "direction": "out"
+    },
+    {
+      "category": "ev_charging",
+      "keywords": [
+        "ez charge",
+        "statiq",
+        "chargezone",
+        "ather grid",
+        "tata power ez",
+        "ev charging",
+        "jio bp pulse"
+      ]
+    },
+    {
+      "category": "tolls",
+      "keywords": ["fastag", "fast tag", "toll", "toll plaza", "nhai", "netc", "ihmcl"]
+    },
+    {
+      "category": "parking",
+      "keywords": ["parking", "park plus", "parkplus"]
+    },
+    {
+      "category": "vehicle_service",
+      "keywords": [
+        "car wash",
+        "service center",
+        "service centre",
+        "gomechanic",
+        "tyre",
+        "tyres",
+        "carnation auto",
+        "bike service"
+      ]
+    },
+    {
+      "category": "electricity",
+      "keywords": [
+        "electricity",
+        "tata power",
+        "tata power ddl",
+        "adani electricity",
+        "msedcl",
+        "mahavitaran",
+        "mseb",
+        "bescom",
+        "tneb",
+        "tangedco",
+        "bses",
+        "bses rajdhani",
+        "bses yamuna",
+        "torrent power",
+        "cesc",
+        "kseb",
+        "tsspdcl",
+        "apspdcl",
+        "uppcl",
+        "pspcl",
+        "jvvnl",
+        "wbsedcl",
+        "best undertaking"
+      ],
+      "direction": "out"
+    },
+    {
+      "category": "gas",
+      "keywords": [
+        "mahanagar gas",
+        "mgl",
+        "igl",
+        "indraprastha gas",
+        "gujarat gas",
+        "adani total gas",
+        "adani gas",
+        "indane",
+        "hp gas",
+        "bharat gas",
+        "bharatgas",
+        "piped gas",
+        "gas cylinder",
+        "lpg"
+      ],
+      "direction": "out",
+      "confidence": 0.7
+    },
+    {
+      "category": "water",
+      "keywords": ["water bill", "jal board", "water supply", "water tax", "bwssb"],
+      "direction": "out"
+    },
+    {
+      "category": "internet",
+      "keywords": [
+        "jio fiber",
+        "jiofiber",
+        "airtel xstream",
+        "airtel broadband",
+        "airtel fiber",
+        "act fibernet",
+        "atria convergence",
+        "hathway",
+        "excitel",
+        "you broadband",
+        "tikona",
+        "broadband",
+        "fibernet",
+        "bsnl ftth"
+      ],
+      "direction": "out"
+    },
+    {
+      "category": "mobile_recharge",
+      "keywords": [
+        "jio",
+        "reliance jio",
+        "jio prepaid",
+        "airtel",
+        "bharti airtel",
+        "airtel prepaid",
+        "vodafone",
+        "vodafone idea",
+        "vi prepaid",
+        "vi postpaid",
+        "bsnl",
+        "recharge",
+        "prepaid recharge",
+        "postpaid"
+      ],
+      "direction": "out",
+      "confidence": 0.7
+    },
+    {
+      "category": "rent",
+      "keywords": ["rent", "house rent", "nobroker", "nestaway", "rent payment"],
+      "direction": "out",
+      "confidence": 0.6
+    },
+    {
+      "category": "appliance_rent",
+      "keywords": ["rentomojo", "furlenco", "cityfurnish"],
+      "direction": "out"
+    },
+    {
+      "category": "society_maintenance",
+      "keywords": [
+        "society",
+        "maintenance",
+        "society maintenance",
+        "mygate",
+        "nobrokerhood",
+        "apartment adda",
+        "adda",
+        "housing society",
+        "chs"
+      ],
+      "direction": "out",
+      "confidence": 0.7
+    },
+    {
+      "category": "domestic_help",
+      "keywords": ["maid", "domestic help", "cook salary", "driver salary", "house help"],
+      "direction": "out",
+      "confidence": 0.7
+    },
+    {
+      "category": "home_repairs",
+      "keywords": [
+        "plumber",
+        "electrician",
+        "carpenter",
+        "pest control",
+        "home repair",
+        "painting"
+      ],
+      "direction": "out",
+      "confidence": 0.7
+    },
+    {
+      "category": "insurance_premium",
+      "keywords": [
+        "insurance",
+        "lic",
+        "lic of india",
+        "life insurance",
+        "hdfc life",
+        "icici pru",
+        "icici prudential",
+        "icici lombard",
+        "sbi life",
+        "max life",
+        "tata aia",
+        "bajaj allianz",
+        "star health",
+        "niva bupa",
+        "care health",
+        "digit insurance",
+        "go digit",
+        "acko",
+        "policybazaar",
+        "premium"
+      ],
+      "direction": "out",
+      "confidence": 0.75
+    },
+    {
+      "category": "emi_loan",
+      "keywords": [
+        "emi",
+        "loan",
+        "loan emi",
+        "home loan",
+        "car loan",
+        "personal loan",
+        "bajaj finance",
+        "bajaj finserv",
+        "hdb financial",
+        "tata capital",
+        "loan repayment",
+        "lazypay",
+        "simpl",
+        "slice",
+        "zestmoney"
+      ],
+      "direction": "out",
+      "confidence": 0.75
+    },
+    {
+      "category": "medical",
+      "keywords": [
+        "apollo",
+        "apollo pharmacy",
+        "pharmeasy",
+        "1mg",
+        "tata 1mg",
+        "netmeds",
+        "medplus",
+        "wellness forever",
+        "practo",
+        "hospital",
+        "hospitals",
+        "clinic",
+        "pharmacy",
+        "chemist",
+        "medical",
+        "medicals",
+        "diagnostics",
+        "pathology",
+        "dr lal",
+        "thyrocare",
+        "metropolis",
+        "dental"
+      ],
+      "direction": "out"
+    },
+    {
+      "category": "education",
+      "keywords": [
+        "school",
+        "college",
+        "university",
+        "tuition",
+        "byjus",
+        "byju",
+        "unacademy",
+        "udemy",
+        "coursera",
+        "upgrad",
+        "vedantu",
+        "physicswallah",
+        "school fees",
+        "exam fee"
+      ],
+      "direction": "out"
+    },
+    {
+      "category": "gifts_given",
+      "keywords": ["gift", "giftcard", "gift card", "ferns n petals", "fnp", "igp"],
+      "direction": "out",
+      "confidence": 0.6
+    },
+    {
+      "category": "donations",
+      "keywords": [
+        "donation",
+        "donate",
+        "charity",
+        "give india",
+        "giveindia",
+        "ketto",
+        "milaap",
+        "temple",
+        "trust donation",
+        "pm cares"
+      ],
+      "direction": "out"
+    },
+    {
+      "category": "taxes",
+      "keywords": [
+        "income tax",
+        "advance tax",
+        "self assessment tax",
+        "tin nsdl",
+        "protean",
+        "oltas",
+        "challan",
+        "property tax",
+        "gst payment",
+        "professional tax",
+        "tds payment"
+      ],
+      "direction": "out"
+    },
+    {
+      "category": "bank_charges",
+      "keywords": [
+        "charges",
+        "chgs",
+        "chrg",
+        "sms charges",
+        "annual fee",
+        "annual fees",
+        "joining fee",
+        "late fee",
+        "late payment fee",
+        "finance charges",
+        "fuel surcharge",
+        "surcharge",
+        "amc",
+        "debit card fee",
+        "dc annual",
+        "min bal",
+        "minimum balance",
+        "non maintenance",
+        "cheque book",
+        "chq book",
+        "overlimit fee"
+      ]
+    },
+    {
+      "category": "stocks",
+      "keywords": [
+        "zerodha",
+        "zerodha broking",
+        "upstox",
+        "rksv",
+        "angel one",
+        "angel broking",
+        "icici direct",
+        "icicidirect",
+        "hdfc securities",
+        "kotak securities",
+        "raise securities",
+        "5paisa",
+        "motilal oswal",
+        "sharekhan",
+        "indmoney",
+        "smallcase",
+        "nse clearing",
+        "bse limited"
+      ]
+    },
+    {
+      "category": "mutual_funds",
+      "keywords": [
+        "groww",
+        "nextbillion",
+        "sip",
+        "mutual fund",
+        "mutual funds",
+        "kuvera",
+        "zerodha coin",
+        "coin by zerodha",
+        "paytm money",
+        "et money",
+        "bse star mf",
+        "mf utilities",
+        "mfu",
+        "cams",
+        "kfintech",
+        "karvy",
+        "indian clearing corporation",
+        "iccl",
+        "nippon india mf",
+        "sbi mutual fund",
+        "hdfc mutual fund",
+        "axis mutual fund",
+        "parag parikh",
+        "ppfas"
+      ]
+    },
+    {
+      "category": "gold",
+      "keywords": [
+        "sgb",
+        "sovereign gold",
+        "gold bond",
+        "digital gold",
+        "safegold",
+        "mmtc pamp",
+        "augmont"
+      ]
+    },
+    {
+      "category": "fixed_deposit",
+      "keywords": ["fixed deposit", "fd booking", "term deposit", "fd opened"]
+    },
+    {
+      "category": "recurring_deposit",
+      "keywords": ["recurring deposit", "rd installment", "rd instalment"]
+    },
+    {
+      "category": "ppf",
+      "keywords": ["ppf", "public provident fund"]
+    },
+    {
+      "category": "epf_vpf",
+      "keywords": ["epfo", "vpf", "provident fund"]
+    },
+    {
+      "category": "nps",
+      "keywords": ["nps", "national pension", "nps trust", "pfrda", "protean nps", "nsdl nps"]
+    },
+    {
+      "category": "crypto",
+      "keywords": ["wazirx", "coindcx", "coinswitch", "zebpay", "mudrex", "binance"]
+    },
+    {
+      "category": "salary",
+      "keywords": ["salary", "sal", "salary credit", "payroll", "sal cr"],
+      "direction": "in",
+      "confidence": 0.9
+    },
+    {
+      "category": "interest",
+      "keywords": [
+        "interest",
+        "int pd",
+        "int paid",
+        "int cr",
+        "credit interest",
+        "sb int",
+        "interest paid",
+        "fd interest",
+        "int on fd"
+      ],
+      "direction": "in"
+    },
+    {
+      "category": "dividend",
+      "keywords": ["dividend", "div", "final div", "interim div", "ach c dividend"],
+      "direction": "in"
+    },
+    {
+      "category": "cashback",
+      "keywords": ["cashback", "cash back", "cb credit", "reward", "rewards"],
+      "direction": "in"
+    },
+    {
+      "category": "refund",
+      "keywords": ["refund", "reversal", "rev", "chargeback", "reversed"],
+      "direction": "in",
+      "confidence": 0.7
+    },
+    {
+      "category": "gift_received",
+      "keywords": ["gift", "birthday gift", "shagun"],
+      "direction": "in",
+      "confidence": 0.6
+    },
+    {
+      "category": "freelance",
+      "keywords": ["upwork", "fiverr", "freelance", "consulting fee", "professional fee"],
+      "direction": "in",
+      "confidence": 0.7
+    },
+    {
+      "category": "rental_income",
+      "keywords": ["rent received", "rental income"],
+      "direction": "in"
+    },
+    {
+      "category": "self_transfer",
+      "keywords": ["self", "own account", "self transfer"],
+      "confidence": 0.6
+    },
+    {
+      "category": "cc_bill_payment",
+      "keywords": [
+        "payment received",
+        "bbps payment received",
+        "payment thank you",
+        "thank you for payment",
+        "autopay payment"
+      ],
+      "direction": "in",
+      "accountTypes": ["credit_card"],
+      "confidence": 0.9
+    },
+    {
+      "category": "cc_bill_payment",
+      "keywords": [
+        "credit card payment",
+        "credit card bill",
+        "cc payment",
+        "cc bill",
+        "card bill payment",
+        "cc autopay",
+        "cred club",
+        "cred",
+        "autopay si",
+        "si tad",
+        "si mad"
+      ],
+      "direction": "out",
+      "confidence": 0.8
+    },
+    {
+      "category": "atm_cash",
+      "channels": ["atm"],
+      "direction": "out",
+      "confidence": 0.95
+    },
+    {
+      "category": "interest",
+      "channels": ["interest"],
+      "direction": "in",
+      "confidence": 0.9
+    },
+    {
+      "category": "bank_charges",
+      "channels": ["charges"],
+      "confidence": 0.85
+    }
+  ]
+}

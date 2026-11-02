@@ -1,6 +1,6 @@
 /**
- * Minimal counterparty keying for manually entered names (Phase 1).
- * Phase 3's normalizeCounterparty (narration parsing, VPA extraction) builds on this.
+ * Counterparty keying for names (manual entries and normalized payees).
+ * Narration parsing (VPA, channel, payee extraction) lives in categorize/normalize.ts.
  */
 
 const NOISE_WORDS = new Set([
@@ -15,6 +15,16 @@ const NOISE_WORDS = new Set([
   'india',
   'payment',
   'payments',
+  'ind',
+  'upi',
+  'com',
+  'corp',
+  'corporation',
+  'company',
+  'services',
+  'technologies',
+  'solutions',
+  'systems',
 ]);
 
 /** Collapse whitespace and trim; keeps the user's casing for display. */

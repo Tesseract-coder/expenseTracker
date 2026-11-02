@@ -7,6 +7,12 @@ import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { accountRoutes } from './routes/accounts';
 import { categoryRoutes } from './routes/categories';
+import {
+  categorizationRoutes,
+  inboxRoutes,
+  learnedLabelRoutes,
+  ruleRoutes,
+} from './routes/categorization';
 import { healthRoutes } from './routes/health';
 import { importRoutes, parserProfileRoutes } from './routes/imports';
 import { meRoutes } from './routes/me';
@@ -47,7 +53,11 @@ export function createApp(deps: AppDeps = {}) {
     .route('/counterparties', counterpartyRoutes)
     .route('/undo', undoRoutes)
     .route('/imports', importRoutes)
-    .route('/parser-profiles', parserProfileRoutes);
+    .route('/parser-profiles', parserProfileRoutes)
+    .route('/inbox', inboxRoutes)
+    .route('/categorization', categorizationRoutes)
+    .route('/rules', ruleRoutes)
+    .route('/learned-labels', learnedLabelRoutes);
 
   api.onError(errorHandler);
 

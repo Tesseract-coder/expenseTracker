@@ -1,6 +1,8 @@
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import {
+  categorize,
+  type CategorizeResult,
   cleanDisplayName,
   counterpartyKey,
   isoDayOfWeek,
@@ -21,6 +23,8 @@ import {
   auditLog,
   categories,
   counterparties,
+  learnedLabels,
+  rules,
   tags,
   transactionSplits,
   transactionTags,
@@ -30,6 +34,7 @@ import { decodeCursor, encodeCursor } from '../lib/cursor';
 import { ApiException, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { getUncategorizedId } from './categories';
+import { loadCategorizer } from './categorization';
 
 type TxnRow = typeof transactions.$inferSelect;
 type SplitRow = typeof transactionSplits.$inferSelect;
@@ -58,7 +63,7 @@ async function assertAccount(db: Db, userId: string, accountId: string): Promise
   if (!row) throw notFound('Account not found');
 }
 
-async function assertCategories(db: Db, userId: string, ids: string[]): Promise<void> {
+export async function assertCategories(db: Db, userId: string, ids: string[]): Promise<void> {
   const unique = [...new Set(ids)];
   if (unique.length === 0) return;
   const rows = await db
@@ -105,7 +110,7 @@ async function upsertCounterparty(db: Db, userId: string, name: string): Promise
   return row.mergedIntoId ?? row.id;
 }
 
-async function upsertTags(db: Db, userId: string, names: string[]): Promise<string[]> {
+export async function upsertTags(db: Db, userId: string, names: string[]): Promise<string[]> {
   const unique = [...new Set(names)];
   if (unique.length === 0) return [];
   await runBatch(
@@ -121,7 +126,7 @@ async function upsertTags(db: Db, userId: string, names: string[]): Promise<stri
   return rows.map((r) => r.id);
 }
 
-function refreshCounterparties(db: Db, ids: (string | null)[]): BatchItem<'sqlite'>[] {
+export function refreshCounterparties(db: Db, ids: (string | null)[]): BatchItem<'sqlite'>[] {
   const real = [...new Set(ids.filter((x): x is string => !!x))];
   if (real.length === 0) return [];
   return [
@@ -195,6 +200,9 @@ async function toDtos(
         : null,
     categoryId: t.categoryId,
     categorizedBy: t.categorizedBy,
+    categorizationReason: t.categorizationReason,
+    confidence: t.confidence,
+    vpa: t.vpa,
     isSplit: t.isSplit === 1,
     splits: (splitsBy.get(t.id) ?? []).map((s) => ({
       id: s.id,
@@ -309,8 +317,39 @@ export async function createTransaction(db: Db, userId: string, input: Transacti
   const counterpartyId = input.counterpartyName
     ? await upsertCounterparty(db, userId, input.counterpartyName)
     : null;
-  const tagIds = await upsertTags(db, userId, input.tags);
-  const categoryId = isSplit ? null : (input.categoryId ?? (await getUncategorizedId(db, userId)));
+  let tagIds = await upsertTags(db, userId, input.tags);
+  let auto: CategorizeResult | null = null;
+  if (!isSplit && !input.categoryId) {
+    // No category chosen: run the engine (rules → learned labels → keywords) on payee + note.
+    const account = await db
+      .select({ type: accounts.type })
+      .from(accounts)
+      .where(eq(accounts.id, input.accountId))
+      .get();
+    const { ctx } = await loadCategorizer(db, userId);
+    const key = input.counterpartyName
+      ? counterpartyKey(cleanDisplayName(input.counterpartyName))
+      : null;
+    auto = categorize(
+      {
+        narration: input.note,
+        extraText: input.counterpartyName,
+        counterpartyKey: key,
+        counterpartyId,
+        vpa: key?.includes('@') ? key : null,
+        amountPaise: input.amountPaise,
+        direction: input.direction,
+        accountId: input.accountId,
+        accountType: account?.type ?? null,
+        channel: null,
+      },
+      ctx,
+    );
+    if (auto?.setTagIds.length) tagIds = [...new Set([...tagIds, ...auto.setTagIds])];
+  }
+  const categoryId = isSplit
+    ? null
+    : (input.categoryId ?? auto?.categoryId ?? (await getUncategorizedId(db, userId)));
 
   await runBatch(db, [
     db.insert(transactions).values({
@@ -325,9 +364,13 @@ export async function createTransaction(db: Db, userId: string, input: Transacti
       channel: null, // payment rail is unknown for manual entries; parsers set it in Phase 2/3
       counterpartyId,
       categoryId,
-      categorizedBy: isSplit || input.categoryId ? 'manual' : 'none',
+      categorizedBy: isSplit || input.categoryId ? 'manual' : (auto?.categorizedBy ?? 'none'),
+      ruleId: auto?.ruleId ?? null,
+      learnedLabelId: auto?.learnedLabelId ?? null,
+      confidence: auto?.confidence ?? null,
+      categorizationReason: auto?.reason ?? null,
       isSplit: isSplit ? 1 : 0,
-      note: input.note,
+      note: input.note ?? auto?.setNote ?? null,
       status: 'confirmed',
       source: 'manual',
       fingerprint: await sha256Hex(`manual|${id}`),
@@ -339,11 +382,29 @@ export async function createTransaction(db: Db, userId: string, input: Transacti
       ? [db.insert(transactionTags).values(tagIds.map((tagId) => ({ transactionId: id, tagId })))]
       : []),
     ...refreshCounterparties(db, [counterpartyId]),
+    ...(auto?.ruleId
+      ? [
+          db
+            .update(rules)
+            .set({ hitCount: sql`${rules.hitCount} + 1`, lastHitAt: Date.now() })
+            .where(and(eq(rules.userId, userId), eq(rules.id, auto.ruleId))),
+        ]
+      : []),
+    ...(auto?.learnedLabelId
+      ? [
+          db
+            .update(learnedLabels)
+            .set({ hitCount: sql`${learnedLabels.hitCount} + 1`, lastHitAt: Date.now() })
+            .where(
+              and(eq(learnedLabels.userId, userId), eq(learnedLabels.id, auto.learnedLabelId)),
+            ),
+        ]
+      : []),
   ]);
   return getTransaction(db, userId, id);
 }
 
-async function loadRow(db: Db, userId: string, id: string) {
+export async function loadRow(db: Db, userId: string, id: string) {
   const row = await db
     .select()
     .from(transactions)
@@ -488,7 +549,7 @@ export async function updateTransaction(
   return getTransaction(db, userId, id);
 }
 
-interface DeletedSnapshot {
+export interface DeletedSnapshot {
   transaction: TxnRow;
   splits: SplitRow[];
   tagIds: string[];
@@ -522,67 +583,6 @@ export async function deleteTransaction(db: Db, userId: string, id: string): Pro
   return batchId;
 }
 
-/** Undo a batch from audit_log. Phase 1 supports delete_txn; Phase 3 adds recategorize/bulk. */
-export async function undoBatch(db: Db, userId: string, batchId: string): Promise<number> {
-  const entries = await db
-    .select()
-    .from(auditLog)
-    .where(
-      and(
-        eq(auditLog.userId, userId),
-        eq(auditLog.batchId, batchId),
-        sql`${auditLog.undoneAt} is null`,
-      ),
-    );
-  if (entries.length === 0) throw notFound('Nothing to undo');
-  if (entries.some((e) => e.action !== 'delete_txn')) {
-    throw badRequest('undo_unsupported', 'This action cannot be undone yet');
-  }
-
-  const items: BatchItem<'sqlite'>[] = [];
-  const counterpartyIds: (string | null)[] = [];
-  for (const e of entries) {
-    const snap = JSON.parse(e.before ?? 'null') as DeletedSnapshot;
-    counterpartyIds.push(snap.transaction.counterpartyId);
-    items.push(db.insert(transactions).values(snap.transaction));
-    if (snap.splits.length) items.push(db.insert(transactionSplits).values(snap.splits));
-    if (snap.tagIds.length) {
-      // Re-link only tags that still exist.
-      items.push(
-        db.insert(transactionTags).select(
-          db
-            .select({
-              transactionId: sql<string>`${snap.transaction.id}`.as('transaction_id'),
-              tagId: tags.id,
-            })
-            .from(tags)
-            .where(and(eq(tags.userId, userId), inJson(tags.id, snap.tagIds))),
-        ),
-      );
-    }
-  }
-  items.push(
-    db
-      .update(auditLog)
-      .set({ undoneAt: Date.now() })
-      .where(and(eq(auditLog.userId, userId), eq(auditLog.batchId, batchId))),
-    ...refreshCounterparties(db, counterpartyIds),
-  );
-  try {
-    await runBatch(db, items);
-  } catch (err) {
-    if (err instanceof Error && /constraint/i.test(err.message + String(err.cause))) {
-      throw new ApiException(
-        409,
-        'undo_conflict',
-        'Cannot undo: the account or data it belonged to has changed',
-      );
-    }
-    throw err;
-  }
-  return entries.length;
-}
-
 // ---------------------------------------------------------------------------- lookups
 
 export async function listTags(db: Db, userId: string) {
@@ -600,22 +600,33 @@ export async function listTags(db: Db, userId: string) {
   return rows.map((r) => ({ ...r, count: Number(r.count) }));
 }
 
-export async function searchCounterparties(db: Db, userId: string, q: string | undefined) {
+export async function searchCounterparties(
+  db: Db,
+  userId: string,
+  q: string | undefined,
+  limit = 20,
+) {
   const rows = await db
     .select({
       id: counterparties.id,
       name: counterparties.displayName,
+      key: counterparties.key,
+      vpa: counterparties.vpa,
       txnCount: counterparties.txnCount,
+      lastSeenDate: counterparties.lastSeenDate,
     })
     .from(counterparties)
     .where(
       and(
         eq(counterparties.userId, userId),
         sql`${counterparties.mergedIntoId} is null`,
-        q ? sql`${counterparties.displayName} like ${`%${escapeLike(q)}%`} escape '\\'` : undefined,
+        q
+          ? sql`(${counterparties.displayName} like ${`%${escapeLike(q)}%`} escape '\\'
+              or ${counterparties.key} like ${`%${escapeLike(q.toLowerCase())}%`} escape '\\')`
+          : undefined,
       ),
     )
     .orderBy(desc(counterparties.txnCount), counterparties.displayName)
-    .limit(20);
+    .limit(limit);
   return rows;
 }

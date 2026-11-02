@@ -16,6 +16,7 @@ import {
 } from '@kharcha/shared';
 import {
   useAccounts,
+  useCategoryMap,
   useCommitImport,
   useParserProfiles,
   usePreviewImport,
@@ -53,7 +54,14 @@ type Step =
       parseErrors: { sourceRow: number; message: string }[];
       duplicateOf: { fileName: string | null; committedAt: number | null } | null;
     }
-  | { kind: 'done'; importId: string; inserted: number; skipped: number; transfers: number };
+  | {
+      kind: 'done';
+      importId: string;
+      inserted: number;
+      skipped: number;
+      transfers: number;
+      categorized: number;
+    };
 
 const LAST_IMPORT_ACCOUNT = 'kharcha.lastImportAccountId';
 
@@ -138,8 +146,17 @@ export function ImportPage() {
     localStorage.setItem(LAST_IMPORT_ACCOUNT, account.id);
     setBusy('Reading statement…');
     try {
-      const grid = await readStatementFile(file);
-      const saved = profiles.data?.find((p) => p.id === account.parserProfileId);
+      // Use fresh account + saved-profile data: a mapping saved moments ago (or a page that is still
+      // loading) must not fall back to detection/the wizard.
+      const [grid, accountsNow, profilesNow] = await Promise.all([
+        readStatementFile(file),
+        accounts.refetch(),
+        profiles.refetch(),
+      ]);
+      const profileId =
+        accountsNow.data?.find((a) => a.id === account.id)?.parserProfileId ??
+        account.parserProfileId;
+      const saved = (profilesNow.data ?? profiles.data)?.find((p) => p.id === profileId);
       if (saved) {
         const r = parseGrid(grid, saved.mapping);
         if (r.rows.length > 0 && r.errors.length === 0)
@@ -261,8 +278,14 @@ export function ImportPage() {
         </h2>
         <p className="text-sm text-muted-foreground">
           {step.skipped > 0 && `${step.skipped} already in Kharcha were skipped. `}
-          {step.transfers > 0 && `${step.transfers} marked as transfers.`}
+          {step.transfers > 0 && `${step.transfers} marked as transfers. `}
+          {step.categorized > 0 && `${step.categorized} categorized automatically.`}
         </p>
+        {step.inserted - step.transfers - step.categorized > 0 && (
+          <Link to="/inbox" className="min-h-11 text-sm font-medium text-primary">
+            Label the remaining {step.inserted - step.transfers - step.categorized} →
+          </Link>
+        )}
         <div className="grid w-full grid-cols-2 gap-2">
           <Button variant="outline" onClick={() => setStep({ kind: 'select' })}>
             Import another
@@ -328,6 +351,7 @@ export function ImportPage() {
 const KIND_LABEL = {
   self_transfer: 'Transfer between your accounts',
   cc_bill_payment: 'Credit card bill payment',
+  atm_cash: 'Cash withdrawal → Cash account',
 };
 
 function PreviewStep({
@@ -339,7 +363,12 @@ function PreviewStep({
   step: Extract<Step, { kind: 'preview' }>;
   account: AccountDto | undefined;
   onAdjust: () => void;
-  onDone: (r: { inserted: number; skipped: number; transfers: number }) => void;
+  onDone: (r: {
+    inserted: number;
+    skipped: number;
+    transfers: number;
+    categorized: number;
+  }) => void;
 }) {
   const commit = useCommitImport();
   const { preview } = step;
@@ -373,7 +402,12 @@ function PreviewStep({
         body: { includeNearDuplicates: [...include], acceptTransfers: [...accept] },
       });
       toast.success(`Imported ${r.inserted} transactions`);
-      onDone({ inserted: r.inserted, skipped: r.skippedDuplicates, transfers: r.transfersLinked });
+      onDone({
+        inserted: r.inserted,
+        skipped: r.skippedDuplicates,
+        transfers: r.transfersLinked,
+        categorized: r.categorized,
+      });
     } catch (err) {
       toast.error(errorMessage(err));
     }
@@ -594,12 +628,26 @@ function Section({
 }
 
 function PreviewLine({ row }: { row: PreviewRow }) {
+  const { byId } = useCategoryMap();
+  const category = row.proposal ? byId.get(row.proposal.categoryId) : undefined;
   return (
     <div className="flex items-center gap-2 px-2 py-2 text-sm">
       <span className="w-20 shrink-0 text-xs text-muted-foreground tabular-nums">
         {row.txnDate}
       </span>
-      <span className="min-w-0 flex-1 truncate">{row.narration}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate">{row.payee ?? row.narration}</span>
+        {row.status !== 'duplicate' && (
+          <span
+            className={cn(
+              'truncate text-xs',
+              category ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-400',
+            )}
+          >
+            {category ? category.name : 'Uncategorized'}
+          </span>
+        )}
+      </span>
       <Money
         paise={row.amountPaise}
         direction={row.direction}

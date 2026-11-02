@@ -13,10 +13,13 @@ import {
   type ImportPreviewResponse,
   importCommitRequestSchema,
   isoDayOfWeek,
+  categorize,
+  type CategorizeResult,
+  normalizeNarration,
   type PreviewRow,
+  type PreviewTransferKind,
   singleLegHint,
   type TransferCandidate,
-  type TransferKind,
   weekStart,
 } from '@kharcha/shared';
 import type { Env } from '../env';
@@ -27,6 +30,14 @@ import { ApiException, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { getAccount } from './accounts';
 import { getUncategorizedId } from './categories';
+import {
+  COUNTERPARTY_ID_BY_KEY,
+  hitStatements,
+  loadCategorizer,
+  REFRESH_COUNTERPARTIES_BY_KEYS_SQL,
+  resolveCounterpartyKeys,
+  UPSERT_COUNTERPARTIES_SQL,
+} from './categorization';
 
 type ImportRow = typeof imports.$inferSelect;
 
@@ -38,10 +49,22 @@ const INSERT_CHUNK = 500;
 
 const r2Base = (userId: string, importId: string) => `u/${userId}/imports/${importId}`;
 
+/** Normalized fields and engine result kept server-side between preview and commit. */
+interface StoredRowExtra {
+  fingerprint: string;
+  channel: string;
+  vpa: string | null;
+  ifscPrefix: string | null;
+  narrationRef: string | null;
+  cpKey: string | null;
+  cat: CategorizeResult | null;
+}
+
 interface StoredPreview {
-  version: 1;
+  version: 2;
   accountId: string;
-  rows: (PreviewRow & { fingerprint: string })[];
+  cashAccountId: string | null;
+  rows: (PreviewRow & StoredRowExtra)[];
 }
 
 function toDto(r: ImportRow): ImportDto {
@@ -201,14 +224,33 @@ export async function previewImport(
     windowRows.filter((w) => w.accountId === account.id) satisfies DupCandidate[],
   );
 
+  const blank = {
+    channel: 'other',
+    vpa: null,
+    ifscPrefix: null,
+    narrationRef: null,
+    cpKey: null,
+    cat: null,
+    payee: null,
+    proposal: null,
+  } satisfies Omit<StoredRowExtra, 'fingerprint'> & Pick<PreviewRow, 'payee' | 'proposal'>;
   const previewRows: StoredPreview['rows'] = rows.map((r, index) => {
     const fp = fingerprints[index] as string;
     if (existingFps.has(fp))
-      return { ...r, index, fingerprint: fp, status: 'duplicate', match: null, transfer: null };
+      return {
+        ...r,
+        ...blank,
+        index,
+        fingerprint: fp,
+        status: 'duplicate',
+        match: null,
+        transfer: null,
+      };
     const near = matchNearDuplicate({ id: `new:${index}`, ...r });
     const matched = near ? windowRows.find((w) => w.id === near.id) : undefined;
     return {
       ...r,
+      ...blank,
       index,
       fingerprint: fp,
       status: near ? 'near_duplicate' : 'new',
@@ -274,6 +316,68 @@ export async function previewImport(
     if (hint) row.transfer = { ...hint, counterpartTxnId: null, counterpartAccountId: null };
   }
 
+  // Categorization (Phase 3): normalize narrations, then rules → learned labels → keywords.
+  const pending = previewRows.filter((r) => r.status !== 'duplicate');
+  const normalized = pending.map((r) => normalizeNarration(r.narration, account.type));
+  const keyIds = await resolveCounterpartyKeys(
+    db,
+    userId,
+    normalized.flatMap((n) => (n.counterpartyKey ? [n.counterpartyKey] : [])),
+  );
+  const { ctx } = await loadCategorizer(db, userId);
+  const cashAccount =
+    account.type === 'cash' || account.type === 'credit_card'
+      ? null
+      : await db
+          .select({ id: accounts.id })
+          .from(accounts)
+          .where(
+            and(eq(accounts.userId, userId), eq(accounts.type, 'cash'), eq(accounts.active, 1)),
+          )
+          .orderBy(accounts.sortOrder, accounts.createdAt)
+          .get();
+  pending.forEach((row, i) => {
+    const n = normalized[i] as (typeof normalized)[number];
+    row.channel = n.channel;
+    row.vpa = n.vpa;
+    row.ifscPrefix = n.ifscPrefix;
+    row.narrationRef = n.refNo;
+    row.cpKey = n.counterpartyKey;
+    row.payee = n.payee;
+    row.cat = categorize(
+      {
+        narration: row.narration,
+        counterpartyKey: n.counterpartyKey,
+        counterpartyId: n.counterpartyKey ? (keyIds.get(n.counterpartyKey) ?? null) : null,
+        vpa: n.vpa,
+        amountPaise: row.amountPaise,
+        direction: row.direction,
+        accountId: account.id,
+        accountType: account.type,
+        channel: n.channel,
+      },
+      ctx,
+    );
+    row.proposal = row.cat
+      ? {
+          categoryId: row.cat.categoryId,
+          categorizedBy: row.cat.categorizedBy,
+          reason: row.cat.reason,
+          confidence: row.cat.confidence,
+        }
+      : null;
+    // ATM withdrawal = transfer to Cash (decision 2026-11-01): suggest moving it to the Cash account.
+    if (cashAccount && !row.transfer && n.channel === 'atm' && row.direction === 'out') {
+      row.transfer = {
+        kind: 'atm_cash',
+        confidence: 'high',
+        reason: 'ATM withdrawal → Cash account',
+        counterpartTxnId: null,
+        counterpartAccountId: cashAccount.id,
+      };
+    }
+  });
+
   // Reconciliation: compare the statement's closing balance with what Kharcha will show.
   let reconciliation: ImportPreviewResponse['reconciliation'] = null;
   if (req.closingBalancePaise !== null && req.statementTo) {
@@ -303,7 +407,12 @@ export async function previewImport(
     transfers: previewRows.filter((r) => r.transfer).length,
   };
 
-  const stored: StoredPreview = { version: 1, accountId: account.id, rows: previewRows };
+  const stored: StoredPreview = {
+    version: 2,
+    accountId: account.id,
+    cashAccountId: cashAccount?.id ?? null,
+    rows: previewRows,
+  };
   await env.STATEMENTS.put(`${r2Base(userId, importId)}/preview.json`, JSON.stringify(stored), {
     httpMetadata: { contentType: 'application/json' },
   });
@@ -324,7 +433,18 @@ export async function previewImport(
 
   return {
     importId,
-    rows: previewRows.map(({ fingerprint: _fp, ...r }) => r),
+    rows: previewRows.map(
+      ({
+        fingerprint: _fp,
+        channel: _c,
+        vpa: _v,
+        ifscPrefix: _i,
+        narrationRef: _n,
+        cpKey: _k,
+        cat: _cat,
+        ...r
+      }) => r,
+    ),
     summary,
     reconciliation,
   };
@@ -332,34 +452,50 @@ export async function previewImport(
 
 // ---------------------------------------------------------------------------- commit
 
-async function systemCategoryIds(db: Db, userId: string): Promise<Record<TransferKind, string>> {
+async function systemCategoryIds(
+  db: Db,
+  userId: string,
+): Promise<Record<PreviewTransferKind, string>> {
   const rows = await db
     .select({ id: categories.id, key: categories.systemKey })
     .from(categories)
     .where(
       and(
         eq(categories.userId, userId),
-        inJson(categories.systemKey, ['self_transfer', 'cc_bill_payment']),
+        inJson(categories.systemKey, ['self_transfer', 'cc_bill_payment', 'atm_cash']),
       ),
     );
   const byKey = Object.fromEntries(rows.map((r) => [r.key, r.id]));
-  if (!byKey.self_transfer || !byKey.cc_bill_payment) throw new Error('system categories missing');
-  return byKey as Record<TransferKind, string>;
+  if (!byKey.self_transfer || !byKey.cc_bill_payment || !byKey.atm_cash)
+    throw new Error('system categories missing');
+  return byKey as Record<PreviewTransferKind, string>;
 }
 
 const INSERT_SQL = `insert or ignore into transactions (
     id, user_id, account_id, txn_date, posted_date, week_start, dow, amount_paise, direction,
-    raw_narration, ref_no, category_id, categorized_by, categorization_reason, is_split, status,
-    source, fingerprint, import_id, transfer_group_id, is_reimbursable, balance_after_paise,
-    created_at, updated_at)
+    raw_narration, channel, counterparty_id, vpa, ifsc_prefix, ref_no, category_id, categorized_by,
+    rule_id, learned_label_id, confidence, categorization_reason, is_split, note, status, source,
+    fingerprint, import_id, transfer_group_id, is_reimbursable, balance_after_paise, created_at, updated_at)
   select
-    json_extract(value, '$.id'), ?1, ?2, json_extract(value, '$.txnDate'), json_extract(value, '$.valueDate'),
+    json_extract(value, '$.id'), ?1, coalesce(json_extract(value, '$.accountId'), ?2),
+    json_extract(value, '$.txnDate'), json_extract(value, '$.valueDate'),
     json_extract(value, '$.weekStart'), json_extract(value, '$.dow'), json_extract(value, '$.amountPaise'),
-    json_extract(value, '$.direction'), json_extract(value, '$.narration'), json_extract(value, '$.refNo'),
-    json_extract(value, '$.categoryId'), json_extract(value, '$.categorizedBy'), json_extract(value, '$.reason'),
-    0, 'confirmed', 'import', json_extract(value, '$.fingerprint'), ?3, json_extract(value, '$.groupId'), 0,
+    json_extract(value, '$.direction'), json_extract(value, '$.narration'), json_extract(value, '$.channel'),
+    ${COUNTERPARTY_ID_BY_KEY("json_extract(value, '$.cpKey')", '?1')},
+    json_extract(value, '$.vpa'), json_extract(value, '$.ifscPrefix'), json_extract(value, '$.refNo'),
+    json_extract(value, '$.categoryId'), json_extract(value, '$.categorizedBy'),
+    (select r.id from rules r where r.user_id = ?1 and r.id = json_extract(value, '$.ruleId')),
+    (select l.id from learned_labels l where l.user_id = ?1 and l.id = json_extract(value, '$.learnedLabelId')),
+    json_extract(value, '$.confidence'), json_extract(value, '$.reason'), 0, json_extract(value, '$.note'),
+    'confirmed', 'import', json_extract(value, '$.fingerprint'), ?3, json_extract(value, '$.groupId'), 0,
     json_extract(value, '$.balancePaise'), ?4, ?4
   from json_each(?5)`;
+
+/** Rule-assigned tags for inserted rows; skips rows that collided at insert and deleted tags. */
+const INSERT_RULE_TAGS_SQL = `insert or ignore into transaction_tags (transaction_id, tag_id)
+  select json_extract(value, '$.t'), json_extract(value, '$.g') from json_each(?1)
+  where json_extract(value, '$.t') in (select id from transactions where user_id = ?2 and import_id = ?3)
+    and json_extract(value, '$.g') in (select id from tags where user_id = ?2)`;
 
 export async function commitImport(
   db: Db,
@@ -387,6 +523,9 @@ export async function commitImport(
     const obj = await env.STATEMENTS.get(`${r2Base(userId, importId)}/preview.json`);
     if (!obj) throw conflict('preview_missing', 'Preview expired; upload the statement again');
     const preview = (await obj.json()) as StoredPreview;
+    if (preview.version !== 2) {
+      throw conflict('preview_missing', 'This preview is out of date; preview the statement again');
+    }
 
     const includeNear = new Set(decisions.includeNearDuplicates);
     const acceptTransfers = new Set(decisions.acceptTransfers);
@@ -395,40 +534,98 @@ export async function commitImport(
     const now = Date.now();
 
     const counterpartUpdates: { id: string; groupId: string; categoryId: string }[] = [];
-    const toInsert = preview.rows
-      .filter(
-        (r) => r.status === 'new' || (r.status === 'near_duplicate' && includeNear.has(r.index)),
-      )
-      .map((r) => {
-        const transfer = r.transfer && acceptTransfers.has(r.index) ? r.transfer : null;
-        const groupId = transfer?.counterpartTxnId ? newId() : null;
-        if (transfer?.counterpartTxnId && groupId) {
-          counterpartUpdates.push({
-            id: transfer.counterpartTxnId,
-            groupId,
-            categoryId: systemIds[transfer.kind],
-          });
-        }
-        return {
-          id: newId(),
-          txnDate: r.txnDate,
-          valueDate: r.valueDate,
-          weekStart: weekStart(r.txnDate),
-          dow: isoDayOfWeek(r.txnDate),
-          amountPaise: r.amountPaise,
-          direction: r.direction,
-          narration: r.narration,
-          refNo: r.refNo,
-          categoryId: transfer ? systemIds[transfer.kind] : uncategorizedId,
-          categorizedBy: transfer ? 'manual' : 'none',
-          reason: transfer ? `transfer:${transfer.kind}` : null,
-          fingerprint: r.fingerprint,
+    const tagLinks: { t: string; g: string }[] = [];
+    const counterpartiesToUpsert = new Map<
+      string,
+      { id: string; key: string; name: string; vpa: string | null }
+    >();
+    const applied: (CategorizeResult | null)[] = [];
+    const toInsert: Record<string, unknown>[] = [];
+    const cashLegs: Record<string, unknown>[] = [];
+    for (const r of preview.rows) {
+      if (!(r.status === 'new' || (r.status === 'near_duplicate' && includeNear.has(r.index))))
+        continue;
+      const transfer = r.transfer && acceptTransfers.has(r.index) ? r.transfer : null;
+      const atmLeg =
+        transfer?.kind === 'atm_cash' && preview.cashAccountId ? preview.cashAccountId : null;
+      const groupId = transfer?.counterpartTxnId || atmLeg ? newId() : null;
+      if (transfer?.counterpartTxnId && groupId) {
+        counterpartUpdates.push({
+          id: transfer.counterpartTxnId,
           groupId,
-          balancePaise: r.balancePaise,
-        };
+          categoryId: systemIds[transfer.kind],
+        });
+      }
+      const cat = transfer ? null : r.cat;
+      if (cat) applied.push(cat);
+      if (r.cpKey && r.payee) {
+        counterpartiesToUpsert.set(r.cpKey, {
+          id: newId(),
+          key: r.cpKey,
+          name: r.payee,
+          vpa: r.vpa,
+        });
+      }
+      const id = newId();
+      for (const g of cat?.setTagIds ?? []) tagLinks.push({ t: id, g });
+      const base = {
+        txnDate: r.txnDate,
+        valueDate: r.valueDate,
+        weekStart: weekStart(r.txnDate),
+        dow: isoDayOfWeek(r.txnDate),
+        amountPaise: r.amountPaise,
+        narration: r.narration,
+        channel: r.channel,
+        balancePaise: r.balancePaise,
+      };
+      toInsert.push({
+        ...base,
+        id,
+        direction: r.direction,
+        cpKey: r.cpKey,
+        vpa: r.vpa,
+        ifscPrefix: r.ifscPrefix,
+        refNo: r.refNo ?? r.narrationRef,
+        categoryId: transfer ? systemIds[transfer.kind] : (cat?.categoryId ?? uncategorizedId),
+        categorizedBy: transfer ? 'manual' : (cat?.categorizedBy ?? 'none'),
+        ruleId: cat?.ruleId ?? null,
+        learnedLabelId: cat?.learnedLabelId ?? null,
+        confidence: cat?.confidence ?? null,
+        reason: transfer ? `transfer:${transfer.kind}` : (cat?.reason ?? null),
+        note: cat?.setNote ?? null,
+        fingerprint: r.fingerprint,
+        groupId,
       });
+      if (atmLeg) {
+        // The Cash side of the withdrawal: money moves into the wallet, it isn't spent yet.
+        cashLegs.push({
+          ...base,
+          id: newId(),
+          accountId: atmLeg,
+          direction: 'in',
+          channel: 'cash',
+          refNo: null,
+          categoryId: systemIds.atm_cash,
+          categorizedBy: 'manual',
+          reason: 'transfer:atm_cash',
+          fingerprint: `atm:${r.fingerprint}`,
+          groupId,
+          balancePaise: null,
+        });
+      }
+    }
 
     const stmts: D1PreparedStatement[] = [];
+    if (counterpartiesToUpsert.size) {
+      stmts.push(
+        env.DB.prepare(UPSERT_COUNTERPARTIES_SQL).bind(
+          userId,
+          now,
+          JSON.stringify([...counterpartiesToUpsert.values()]),
+        ),
+      );
+    }
+    const insertStart = stmts.length;
     for (let i = 0; i < toInsert.length; i += INSERT_CHUNK) {
       stmts.push(
         env.DB.prepare(INSERT_SQL).bind(
@@ -440,7 +637,18 @@ export async function commitImport(
         ),
       );
     }
-    const insertCount = stmts.length;
+    const insertEnd = stmts.length;
+    for (let i = 0; i < cashLegs.length; i += INSERT_CHUNK) {
+      stmts.push(
+        env.DB.prepare(INSERT_SQL).bind(
+          userId,
+          preview.accountId,
+          importId,
+          now,
+          JSON.stringify(cashLegs.slice(i, i + INSERT_CHUNK)),
+        ),
+      );
+    }
     if (counterpartUpdates.length) {
       stmts.push(
         env.DB.prepare(
@@ -460,11 +668,27 @@ export async function commitImport(
         ).bind(JSON.stringify(counterpartUpdates), userId),
       );
     }
+    if (tagLinks.length) {
+      stmts.push(
+        env.DB.prepare(INSERT_RULE_TAGS_SQL).bind(JSON.stringify(tagLinks), userId, importId),
+      );
+    }
+    if (counterpartiesToUpsert.size) {
+      stmts.push(
+        env.DB.prepare(REFRESH_COUNTERPARTIES_BY_KEYS_SQL).bind(
+          userId,
+          JSON.stringify([...counterpartiesToUpsert.keys()]),
+        ),
+      );
+    }
+    stmts.push(...hitStatements(env.DB, userId, applied));
     const results = stmts.length ? await env.DB.batch(stmts) : [];
     const inserted = results
-      .slice(0, insertCount)
+      .slice(insertStart, insertEnd)
       .reduce((acc, r) => acc + (r.meta.changes ?? 0), 0);
-    const transfersLinked = toInsert.filter((r) => r.reason).length;
+    const transfersLinked = toInsert.filter((r) =>
+      String(r.reason ?? '').startsWith('transfer:'),
+    ).length;
 
     await db
       .update(imports)
@@ -477,6 +701,7 @@ export async function commitImport(
       skippedDuplicates:
         preview.rows.filter((r) => r.status === 'duplicate').length + (toInsert.length - inserted),
       transfersLinked,
+      categorized: applied.length,
     };
   } catch (err) {
     await db

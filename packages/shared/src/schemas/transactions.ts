@@ -103,6 +103,10 @@ export const transactionDtoSchema = z.object({
   counterparty: z.object({ id: z.string(), name: z.string() }).nullable(),
   categoryId: z.string().nullable(),
   categorizedBy: categorizedBySchema,
+  /** Why the category was chosen, e.g. `keyword:swiggy`, `rule:Rent`, `learned:swiggy`. */
+  categorizationReason: z.string().nullable(),
+  confidence: z.number().nullable(),
+  vpa: z.string().nullable(),
   isSplit: z.boolean(),
   splits: z.array(transactionSplitDtoSchema),
   tags: z.array(z.object({ id: z.string(), name: z.string() })),
@@ -166,8 +170,12 @@ export const tagListResponseSchema = z.object({ tags: z.array(tagDtoSchema) });
 export const counterpartyDtoSchema = z.object({
   id: z.string(),
   name: z.string(),
+  key: z.string(),
+  vpa: z.string().nullable(),
   txnCount: z.number().int(),
+  lastSeenDate: z.string().nullable(),
 });
+export type CounterpartyDto = z.infer<typeof counterpartyDtoSchema>;
 export const counterpartyListResponseSchema = z.object({
   counterparties: z.array(counterpartyDtoSchema),
 });

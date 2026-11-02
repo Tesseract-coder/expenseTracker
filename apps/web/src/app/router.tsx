@@ -4,6 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AddPage } from '@/features/add/AddPage';
 import { AccountsPage } from '@/features/accounts/AccountsPage';
 import { CategoriesPage } from '@/features/categories/CategoriesPage';
+import { InboxPage } from '@/features/categorize/InboxPage';
 import { HomePage } from '@/features/home/HomePage';
 import { MorePage } from '@/features/more/MorePage';
 import { ReportsPage } from '@/features/reports/ReportsPage';
@@ -17,6 +18,12 @@ const ImportPage = lazy(() =>
 );
 const ImportsHistoryPage = lazy(() =>
   import('@/features/import/ImportsHistoryPage').then((m) => ({ default: m.ImportsHistoryPage })),
+);
+const RulesPage = lazy(() =>
+  import('@/features/categorize/RulesPage').then((m) => ({ default: m.RulesPage })),
+);
+const PayeesPage = lazy(() =>
+  import('@/features/categorize/PayeesPage').then((m) => ({ default: m.PayeesPage })),
 );
 const lazyPage = (el: React.ReactNode) => (
   <Suspense fallback={<Skeleton className="h-40 w-full" />}>{el}</Suspense>
@@ -34,6 +41,13 @@ export const routes = [
       { path: 'more', element: <MorePage />, handle: { title: 'More' } },
       { path: 'more/accounts', element: <AccountsPage />, handle: { title: 'Accounts' } },
       { path: 'more/categories', element: <CategoriesPage />, handle: { title: 'Categories' } },
+      { path: 'inbox', element: <InboxPage />, handle: { title: 'Needs labelling' } },
+      {
+        path: 'more/rules',
+        element: lazyPage(<RulesPage />),
+        handle: { title: 'Rules & learned labels' },
+      },
+      { path: 'more/payees', element: lazyPage(<PayeesPage />), handle: { title: 'Payees' } },
       { path: 'import', element: lazyPage(<ImportPage />), handle: { title: 'Import statement' } },
       {
         path: 'more/imports',

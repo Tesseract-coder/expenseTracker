@@ -1,5 +1,27 @@
 # Changelog
 
+## Phase 3 — Categorization engine (2026-11-02)
+
+- **Normalization** of Indian bank narrations: channel, UPI ID, IFSC/bank code, RRN/UTR, clean payee name and remark, and a canonical payee key (UPI ID first). Covers UPI slash and HDFC dash formats, NEFT/IMPS/RTGS, ACH/NACH mandates, POS/card descriptors (city suffixes, truncated `PVT LI`), ATM, interest, charges and cheque clearing.
+- **Pipeline** `rules → learned labels → keyword dictionary` (manual categories are never touched). Every result records why: `rule:Rent`, `learned:swiggy@ybl`, `keyword:zomato`. The edit sheet shows it as "Why: …".
+- **Keyword dictionary** as versioned JSON (~590 Indian merchant names and patterns across 57 categories), longest match wins, refunds from merchants net off their category, and channel fallbacks for ATM, interest and charges.
+- **Imports** now preview the payee and proposed category per row, create payees, apply rule tags and notes, and track rule and label hit counts. **ATM withdrawals** are suggested as a transfer to Cash and create the Cash-side entry.
+- **Learn from label**: "Always categorize _payee_ as _category_?" offers This one only, All future, or All past + future (with the count first). It can be scoped to money out/in and to an account, and one Undo reverts everything. It's offered from the inbox, on swipe, and after changing a category in the edit sheet.
+- **Needs labelling inbox** (`/inbox`) with one-tap suggestion chips (this payee's history first), multi-select bulk labelling with Undo, and "Auto" re-run. Counts appear on Home and More.
+- **Transactions list**: swipe left to recategorize, long-press (or **Select**) to multi-select and bulk-label.
+- **Rules & learned labels** (`/more/rules`):
+  - condition builder (description/payee/UPI ID contains, is or matches a pattern; amount; direction; account; payment type)
+  - regex safety checks
+  - "Test against my history"
+  - Save & apply to past, with Undo
+  - reorder, enable/disable, hit counts
+  - learned labels: change, disable, forget
+- **Payees** (`/more/payees`): search, rename, merge duplicates. Future imports of a merged payee land on the target.
+- **Undo** generalized to single and bulk recategorize, apply-learned, apply-rule, re-runs and learned-label changes, in one atomic D1 batch that never clobbers later edits.
+- Free-plan engineering: per-row engine cost ≈ 5.7 µs; re-runs and apply-rule are chunked at 250 rows per request and rate-limited once per run; all bulk writes use `json_each` (`INSERT … SELECT`, `UPDATE … FROM`).
+- Fixed: chunked jobs would have hit the per-user rate limit on long histories. Fixed a Phase 2 race where a freshly saved column mapping could be ignored (and the wizard shown again) if the file was chosen before saved profiles loaded; found by stress-running E2E (`--repeat-each=4`, 136/136 green).
+- Tests: 211 new shared tests (normalizer table for every bank, dictionary goldens, rule and regex safety, pipeline precedence; categorize module 99%). 23 new API integration tests (learn scopes and undo, bulk, inbox suggestions, rules test/apply, ATM Cash leg, payee merge, rate limiting, isolation). 4 new E2E flows × 2 viewports, including spec §11's "label + apply to future, next import auto-labels".
+
 ## Phase 2 — Statement import (2026-11-01)
 
 - **Import flow** (`/import`): choose account and file (CSV/TXT/XLS/XLSX, up to 5 MB / 3,000 rows). The format is auto-detected, then the preview shows new rows, already-imported rows, possible duplicates (opt-in), unreadable rows, transfer suggestions and balance reconciliation. Commit is atomic and protected against double commits.

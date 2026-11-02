@@ -80,7 +80,8 @@ Both deploy workflows use concurrency groups, so deploys never overlap.
 
 ## 7. Limits worth knowing (Workers Free)
 
-- **Rate limiting:** `UPLOAD_LIMITER` uses the Workers Rate Limiting binding. Each env has its own `namespace_id` (1001/1002/1003) in `wrangler.toml`; these are arbitrary per-account identifiers, so change them if they collide with your other Workers.
+- **Rate limiting:** `UPLOAD_LIMITER` uses the Workers Rate Limiting binding, counted per user and scope (`upload`, `import`, `bulk`). Each env has its own `namespace_id` (1001/1002/1003) in `wrangler.toml`; these are arbitrary per-account identifiers, so change them if they collide with your other Workers. Preview and production allow 30/min per scope. The local dev config allows 1,000/min because all Playwright tests share one dev user. Chunked jobs (re-run categorization, apply rule) count once per run.
+- **Categorization jobs:** re-runs and "apply rule to past" process 250 transactions per request (each well inside the 10 ms CPU limit), and the app loops until done. A 10,000-transaction history takes about 40 short requests.
 - **Statement size:** imports are capped at 3,000 rows and 5 MB. On the Free plan's 10 ms CPU limit, files over roughly 800 rows can fail with Cloudflare's CPU-limit error (ARCHITECTURE §4.2), so import monthly or quarterly statements.
 - **R2:** original statements and short-lived `preview.json` files live under `u/{userId}/imports/…`. Both stay private and are only served through the authenticated API.
 

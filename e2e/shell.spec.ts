@@ -63,6 +63,9 @@ test.describe('PWA shell', () => {
       '/more/categories',
       '/import',
       '/more/imports',
+      '/inbox',
+      '/more/rules',
+      '/more/payees',
     ]) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');

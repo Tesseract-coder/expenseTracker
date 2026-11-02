@@ -37,10 +37,12 @@ binding = "STATEMENTS"
 bucket_name = "kharcha-statements-dev"
 
 
+# Local dev / E2E: generous, because every Playwright test shares one dev user and runs in parallel.
+# Preview and production keep the real per-user limit (30/min per scope).
 [[ratelimits]]
 name = "UPLOAD_LIMITER"
 namespace_id = "1001"
-simple = { limit = 30, period = 60 }
+simple = { limit = 1000, period = 60 }
 
 # ---------------------------------------------------------------------------
 [env.preview]

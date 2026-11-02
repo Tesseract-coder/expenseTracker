@@ -47,7 +47,7 @@ apps/
   web/            React + Vite + Tailwind + shadcn/ui PWA
     src/
       app/        router, providers, layout (bottom nav)
-      features/   accounts, transactions, import, categorize, reports, settings
+      features/   accounts, transactions, import, categorize (inbox, label sheet, rules, payees), reports, more
       components/ ui (shadcn), charts, money, sheets
       lib/        api client (typed from shared schemas), format (INR, dates), query keys
   api/            Hono Worker
@@ -66,13 +66,13 @@ packages/
       schemas/        zod: account, category, transaction, rule, import, report DTOs
       money/          paise helpers, INR formatting, en-IN grouping
       dates/          IST helpers, week (Mon start), FY (Apr–Mar) ranges
-      categories/     seed tree (versioned JSON) + types
-      normalize/      normalizeCounterparty (channel, VPA, IFSC, ref, key)
-      categorize/     pipeline, rule matcher, keyword dictionary (JSON, versioned)
-      fingerprint/    dedup fingerprint + near-duplicate scoring
-      detect/         self-transfer pairing, CC bill payment, recurring
-      parsers/        bank profiles (HDFC, ICICI, SBI, Axis, Kotak × savings/CC), generic mapper
-      health/         health score components + suggestions
+      categories/     seed tree (versioned) + types
+      categorize/     normalizeNarration (channel, VPA, IFSC, ref, payee, key), rules (schema,
+                      regex safety, matcher), dictionary.json (versioned) + matcher, engine, API schemas
+      import/         bank profiles, parseGrid, fingerprints, near-duplicates, transfer pairing
+      spreadsheet/    SheetJS/PapaParse entry (web only, lazy)
+      text/ crypto/   counterpartyKey; sha256, MurmurHash3
+      health/         (Phase 4) health score components + suggestions
 migrations/        0000_init.sql, ... (drizzle-kit generated, forward-only)
 fixtures/          anonymized statements per bank + expected JSON (golden files)
 scripts/           bootstrap-cloudflare.sh, seed-demo.ts
@@ -108,7 +108,7 @@ Errors map to `{ error: { code, message } }` with stable codes. Logs contain req
    - `INSERT OR IGNORE … SELECT … FROM json_each(?)` in chunks of 500 rows (one bound JSON parameter each)
    - one `UPDATE … FROM json_each` that links transfer counterparts and drops their splits
 
-   On any failure the status reverts to `previewed`. Imported rows are Uncategorized until the Phase 3 engine runs; accepted transfers get the system category and a shared `transfer_group_id`.
+   On any failure the status reverts to `previewed`. Rows get the engine's category (§4.3), and accepted transfers get the system category and a shared `transfer_group_id`.
 
 6. **`POST /api/imports/:id/revert`** deletes the import's rows and un-links counterparts (back to Uncategorized). The R2 file is kept. **`GET /api/imports/:id/file`** downloads the original.
 
@@ -118,36 +118,62 @@ Errors map to `{ error: { code, message } }` with stable codes. Logs contain req
 
 Upload, preview, commit and revert are rate-limited per user (`UPLOAD_LIMITER`, a Workers Rate Limiting binding, 30/min).
 
-### 4.3 Categorization (runs server-side on create/import/rule change)
+### 4.3 Categorization (Phase 3, implemented)
 
-`manual override → user rules (priority asc) → learned labels → keyword dictionary → AI suggestion (flag) → Uncategorized`. This is a pure function in `shared`:
+Pure engine in `packages/shared/src/categorize`, run by the Worker on import preview, manual create, rule apply and re-runs:
 
-```ts
-categorize(txn: NormalizedTxn, ctx: { rules, learned, dictionary, ai? }): {
-  categoryId, categorizedBy, ruleId?, learnedLabelId?, confidence, reason
-}
+```
+manual override (never touched) → user rules (priority asc) → learned labels → keyword dictionary → (AI, Phase 5) → Uncategorized
 ```
 
-The `reason` string (e.g. `keyword:swiggy → Food delivery`) is stored for "why is this categorized as X?".
+- **Normalization** (`normalizeNarration`): channel (UPI/NEFT/IMPS/RTGS/ACH/NACH/ECS/POS/card/ATM/interest/charges), VPA, IFSC prefix or UPI bank code, RRN/UTR, payee display name and remark, plus a **counterparty key**. The key is the VPA when present (except shared gateway VPAs such as `razorpay@…`), otherwise the cleaned payee name. It handles slash and dash UPI formats, NEFT/IMPS segments, mandate prefixes, masked card numbers, trailing city/country on card descriptors, and truncated `PVT/LTD`.
+- **Rules**: `{all: Condition[]}` over `narration` (or the note for manual entries), `counterparty_key`, `vpa`, `amount`, `direction`, `account_id` and `channel`, with ops `contains`/`eq`/`regex`/`gte`/`lte`/`between`/`in`. Regexes pass a linear static check (no nested quantifiers, backreferences or lookbehind; ≤ 200 chars) and only ever see the first 500 characters.
+- **Learned labels**: keyed by counterparty, optionally scoped by direction and/or account. The most specific match wins: account + direction, then account, then direction, then any.
+- **Keyword dictionary**: `dictionary.json`, versioned data validated by Zod in tests; every slug must exist in the seed. It's indexed by first word, so a row costs O(words). The longest keyword wins, and entries without a direction also match inbound rows, so a merchant refund nets off that merchant's category. Channel-only fallbacks cover ATM → `atm_cash`, interest and charges.
+- Each result stores `categorized_by`, `rule_id` / `learned_label_id`, `confidence` and `categorization_reason` (`rule:<name>`, `learned:<key>`, `keyword:<kw>`, `keyword:channel:atm`). The UI turns the reason into "Why: …".
+
+**Where it runs**
+
+- **Import preview** normalizes and categorizes every new row. The preview shows payee and proposed category, and `preview.json` (v2) keeps the normalized fields and results. **Commit** upserts counterparties (`INSERT OR IGNORE … FROM json_each`), resolves `counterparty_id` by key inside the insert (following merges), applies rule tags and notes, refreshes counterparty counts and bumps rule and label hit counts, all in the same single `DB.batch`.
+- **ATM withdrawals** (decision: transfer to Cash) are proposed as an `atm_cash` transfer, ticked by default. Commit inserts a matching **Cash `in` leg** (fingerprint `atm:<bank fp>`, shared `transfer_group_id`, same `import_id`, so revert removes both).
+- **Manual create** without a category runs the engine on payee + note.
+- **Re-run** (`POST /api/categorization/run`) and **apply rule** (`POST /api/rules/:id/apply`) process 250 rows per request and loop on `nextCursor`. All chunks share one `batchId` (one undo). The re-run also back-fills channel, VPA and counterparty for rows imported before Phase 3. Writes use `UPDATE … FROM json_each` and `INSERT INTO audit_log … SELECT`, guarded by `categorized_by != 'manual'`.
+
+**CPU** (warm, Node): normalize ≈ 3.9 µs/row, categorize ≈ 1.8 µs/row with 20 rules. Preview becomes ≈ 18 µs/row in total, so a 300-row monthly statement takes ≈ 5 ms.
 
 ### 4.4 Learn-from-label
 
-`PATCH /api/transactions/:id/category { categoryId, scope: 'this'|'future'|'past_and_future', matchDirection, matchAccount }`
+`PATCH /api/transactions/:id/category { categoryId, scope: 'this'|'future'|'past_and_future', matchDirection = true, matchAccount = false }`, one atomic batch with one undo token:
 
-- `this`: sets `categorized_by='manual'`.
-- `future`: upserts `learned_labels` and sets this txn to manual.
-- `past_and_future`: same as `future`, plus `GET .../impact` first returns the count. Apply runs one `UPDATE … WHERE counterparty_id=? AND categorized_by != 'manual'` plus the audit rows, in one batch. Undo replays `audit_log.before`.
+- `this`: sets the transaction to `manual` (audit `recategorize`).
+- `future`: additionally upserts the learned label for the scope (audit `learn_label` keeps the previous label state, so undo restores or deletes it).
+- `past_and_future`: additionally runs `INSERT INTO audit_log … SELECT` and `UPDATE` over past rows of that counterparty within scope. It skips rows that are manual, **set by a rule** (rules outrank learned labels), split, transfer legs or governed by a more specific learned label. `GET …/category/impact` returns that count before applying.
+- Errors: `no_counterparty` (nothing to learn from), `split_transaction`.
+
+**Undo** (`POST /api/undo/:batchId`) replays an audit batch in **one** D1 batch:
+
+- Plain category changes are restored with a single `UPDATE … FROM audit_log`. A row is restored only while it still holds the category the batch gave it, so later edits win. Deleted rules or labels are restored as null.
+- Split changes and learned labels are restored individually.
+- Undoable actions: `delete_txn`, `recategorize`, `bulk_recategorize`, `apply_learned`, `apply_rule`, `auto_categorize`, `learn_label`.
 
 ### 4.5 API surface
 
-| Method & path                                                                                        | Purpose                                                                                                                                                                                                                    |
-| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET/POST /api/accounts`, `GET/PATCH/DELETE /api/accounts/:id`                                       | Accounts with SQL-computed balances. DELETE only when an account has no transactions (409 `account_has_transactions`), otherwise archive via `active=false`.                                                               |
-| `GET/POST /api/categories`, `PATCH /api/categories/:id`, `POST /api/categories/:id/merge`            | Two-level tree. System categories can be renamed/recolored only. Group type changes and archiving cascade to children. Merge (leaf → leaf) moves every reference in one batch, then archives the source.                   |
-| `GET /api/transactions?cursor&limit&accountIds&categoryIds&tagIds&direction&from&to&q&uncategorized` | Keyset pagination on `(txn_date, created_at, id) DESC`. Group ids expand to children and split parts match. `q` searches narration/note/counterparty with `LIKE` (escaped), and numeric `q` also matches the exact amount. |
-| `POST /api/transactions`, `GET/PATCH/DELETE /api/transactions/:id`                                   | Manual CRUD with splits (sum enforced), tags (upserted, replaced on PATCH), counterparty (keyed by `counterpartyKey`) and reimbursement link (must be an incoming txn). DELETE returns an `undoToken`.                     |
-| `POST /api/undo/:token`                                                                              | Replays the `audit_log` batch. Phase 1 supports `delete_txn`.                                                                                                                                                              |
-| `GET /api/tags`, `GET /api/counterparties?q`                                                         | Autocomplete.                                                                                                                                                                                                              |
+| Method & path                                                                                        | Purpose                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET/POST /api/accounts`, `GET/PATCH/DELETE /api/accounts/:id`                                       | Accounts with SQL-computed balances. DELETE only when an account has no transactions (409 `account_has_transactions`), otherwise archive via `active=false`.                                                                                      |
+| `GET/POST /api/categories`, `PATCH /api/categories/:id`, `POST /api/categories/:id/merge`            | Two-level tree. System categories can be renamed/recolored only. Group type changes and archiving cascade to children. Merge (leaf → leaf) moves every reference in one batch, then archives the source.                                          |
+| `GET /api/transactions?cursor&limit&accountIds&categoryIds&tagIds&direction&from&to&q&uncategorized` | Keyset pagination on `(txn_date, created_at, id) DESC`. Group ids expand to children and split parts match. `q` searches narration/note/counterparty with `LIKE` (escaped), and numeric `q` also matches the exact amount.                        |
+| `POST /api/transactions`, `GET/PATCH/DELETE /api/transactions/:id`                                   | Manual CRUD with splits (sum enforced), tags (upserted, replaced on PATCH), counterparty (keyed by `counterpartyKey`) and reimbursement link (must be an incoming txn). DELETE returns an `undoToken`. Create without a category runs the engine. |
+| `PATCH /api/transactions/:id/category`, `GET …/category/impact`                                      | Learn-from-label (§4.4).                                                                                                                                                                                                                          |
+| `POST /api/transactions/bulk-category` `{ids ≤ 500, categoryId}`                                     | Bulk manual relabel (splits skipped); returns `undoToken`. Rate-limited.                                                                                                                                                                          |
+| `POST /api/undo/:token`                                                                              | Replays an `audit_log` batch (§4.4).                                                                                                                                                                                                              |
+| `GET /api/inbox?cursor&limit`, `GET /api/inbox/count`                                                | "Needs labelling": Uncategorized rows plus up to 4 suggestions each (this payee's history, then your usual categories by direction, then defaults).                                                                                               |
+| `POST /api/categorization/run` `{scope: uncategorized\|all, cursor?, batchId?}`                      | Chunked re-run (250 rows/request). Rate-limited once per run (continuations with a cursor aren't counted).                                                                                                                                        |
+| `GET/POST /api/rules`, `GET/PATCH/DELETE /api/rules/:id`, `POST /api/rules/reorder`                  | Rules CRUD; new rules go last; reorder writes `priority` in one `UPDATE … FROM json_each`.                                                                                                                                                        |
+| `POST /api/rules/test`, `POST /api/rules/:id/apply`                                                  | Test against history (SQL prefilter, then the same JS predicate; most recent 5,000 scanned); apply = chunked re-run of matching non-manual rows.                                                                                                  |
+| `GET /api/learned-labels`, `PATCH/DELETE /api/learned-labels/:id`                                    | List with hit counts, change category, enable/disable, forget.                                                                                                                                                                                    |
+| `GET /api/counterparties?q&limit`, `PATCH /api/counterparties/:id`, `POST …/:id/merge`               | Payees: search (name or key), rename, merge (moves transactions and labels; the old key keeps resolving to the target).                                                                                                                           |
+| `GET /api/tags`                                                                                      | Autocomplete.                                                                                                                                                                                                                                     |
 
 ID lists are passed to SQL as one JSON parameter (`in (select value from json_each(?))`, `db/batch.ts#inJson`) to stay under D1's 100-bound-parameter limit. Validation errors return `400 validation_error` with `issues[{path, message}]`, which forms map to fields.
 
@@ -200,3 +226,15 @@ All reports read from `v_ledger`. There is one row per categorized money movemen
 9. **`@cloudflare/vitest-pool-workers` is deprecated** and renamed to `@cloudflare/vitest-plugin` (same runtime, Vitest 4/5). We use the new package.
 10. **Deploy workflows are opt-in.** They run only when the repo variable `CLOUDFLARE_DEPLOY_ENABLED=true`, so CI stays green before Cloudflare is bootstrapped.
 11. **Node version.** Local Node is 20.20, which is **past EOL (April 2026)**, and pnpm isn't installed. CI and `.nvmrc` will target **Node 22 LTS**. Please install Node 22+ locally and run `corepack enable` to get pnpm. I'll pin `packageManager` in `package.json`.
+12. **Search uses escaped `LIKE`** (Phase 1) over narration, note and payee name. It's adequate for a single user's few thousand rows. FTS5 is the upgrade path (DATA_MODEL §3).
+13. **Bulk writes go through JSON parameters.** D1 on Free allows about 50 queries per invocation and 100 bound parameters per statement. Bulk inserts and updates bind one JSON array and expand it with `json_each` (`INSERT … SELECT`, `UPDATE … FROM`), so a 3,000-row import or a 500-row bulk relabel is a handful of statements.
+14. **Large statements on Free (open decision).** About 800 rows fit in the 10 ms CPU budget. Options: (a) import monthly or quarterly files (current); (b) client-side chunked previews split on date boundaries; (c) Workers Paid.
+15. **Fingerprints use MurmurHash3-128, not SHA-256.** Per-row WebCrypto calls dominated preview CPU. Murmur (non-cryptographic, collision-resistant enough for dedup within one user) cut preview time by ~7×.
+16. **Phase 3: rules outrank learned labels, even for "All past + future".** Applying a learned label to the past skips rows a rule categorized, so the result matches what the pipeline would produce on the next import.
+17. **Phase 3: rule tags and notes apply to new transactions only** (import and manual create). "Apply to past" changes categories only, which keeps undo exact; tag removal isn't tracked in the audit log.
+18. **Phase 3: ATM → Cash leg is created at import.** ATM rows are suggested as an `atm_cash` transfer (ticked by default) and commit adds the Cash `in` leg. Rows imported before Phase 3 are only categorized as Cash withdrawal by a re-run; no Cash leg is back-filled. If you deleted or archived the Cash account, ATM rows are just categorized.
+19. **Phase 3: payee identity.** The VPA is the key when present (spec). The same merchant paid by UPI and by card therefore becomes two payees, and the learned labels of one don't apply to the other. **Payees → Merge** joins them, and future imports of the merged key land on the target.
+20. **Phase 3: refunds and direction.** Learned labels default to "only money going out", so a refund from a payee isn't filed as spending at that payee. Merchant keywords match both directions, so an inbound Amazon refund nets off Online shopping (decision 2026-11-01). Generic refunds stay `Income › Refund`.
+21. **Phase 3: archived seed categories.** A keyword pointing at an archived (or merged-away) seeded category doesn't match, and the row stays Uncategorized. Categories carry no `merged_into` pointer yet.
+22. **Phase 3: regex safety without REGEXP.** D1 has no `REGEXP`, so regex conditions run in the Worker after a SQL prefilter on the other conditions. Patterns pass a conservative static check, and inputs are capped at 500 characters.
+23. **Phase 3: rate limits for chunked jobs.** Re-run and apply-rule loop in 250-row requests, which keeps each under the Free CPU budget; only the first request of a run counts against the `bulk` limit. The local dev limiter is set to 1,000/min because every Playwright test shares one dev user; preview and production keep 30/min.

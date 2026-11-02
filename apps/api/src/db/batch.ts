@@ -16,3 +16,12 @@ export async function runBatch(db: Db, items: BatchItem<'sqlite'>[]): Promise<vo
 export function inJson(column: SQLiteColumn | SQL, ids: readonly string[]): SQL {
   return sql`${column} in (select value from json_each(${JSON.stringify(ids)}))`;
 }
+
+/**
+ * Converts a Drizzle query builder into a raw D1 statement, so builder queries and raw SQL
+ * (e.g. `UPDATE … FROM json_each`) can run together in one atomic `d1.batch`.
+ */
+export function toD1(d1: D1Database, q: { toSQL(): { sql: string; params: unknown[] } }) {
+  const { sql: text, params } = q.toSQL();
+  return d1.prepare(text).bind(...params);
+}

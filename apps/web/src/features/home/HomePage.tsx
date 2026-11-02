@@ -1,7 +1,7 @@
-import { ChevronRight, Inbox, Wallet } from 'lucide-react';
+import { ChevronRight, Inbox, Tags, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 import { Link } from 'react-router';
-import { useAccounts, useCategoryMap, useTransactions } from '@/app/queries';
+import { useAccounts, useCategoryMap, useInboxCount, useTransactions } from '@/app/queries';
 import { EmptyState } from '@/components/EmptyState';
 import { Money } from '@/components/Money';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ export function HomePage() {
   const recent = useTransactions({}, 5);
   const { byId: categoriesById } = useCategoryMap();
   const { openEdit } = useTransactionSheet();
+  const inboxCount = useInboxCount();
   const active = (accounts.data ?? []).filter((a) => a.active);
   const accountsById = useMemo(
     () => new Map((accounts.data ?? []).map((a) => [a.id, a])),
@@ -37,6 +38,19 @@ export function HomePage() {
           )}
         </CardContent>
       </Card>
+
+      {(inboxCount.data ?? 0) > 0 && (
+        <Link
+          to="/inbox"
+          className="flex min-h-14 items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+        >
+          <Tags aria-hidden className="size-5" />
+          <span className="flex-1">
+            {inboxCount.data} transaction{inboxCount.data === 1 ? '' : 's'} need labelling
+          </span>
+          <ChevronRight aria-hidden className="size-5" />
+        </Link>
+      )}
 
       <section aria-labelledby="accounts-heading">
         <div className="mb-2 flex items-center justify-between">

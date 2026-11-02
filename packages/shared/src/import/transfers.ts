@@ -12,6 +12,8 @@ export interface TransferCandidate {
 }
 
 export type TransferKind = 'self_transfer' | 'cc_bill_payment';
+/** Preview-level kinds: pairs/hints plus ATM withdrawals moved to the Cash account. */
+export type PreviewTransferKind = TransferKind | 'atm_cash';
 
 export interface TransferPair {
   outKey: string;

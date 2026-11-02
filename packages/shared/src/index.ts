@@ -5,3 +5,4 @@ export * from './schemas';
 export * from './text';
 export * from './crypto';
 export * from './import';
+export * from './categorize';

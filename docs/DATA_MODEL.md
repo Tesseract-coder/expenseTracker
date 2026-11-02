@@ -83,17 +83,17 @@ _Cash withdrawal (ATM)_ is special: it's typed `transfer` (money moves bank→ca
 
 ### counterparties
 
-| col                    | type                        | notes                                                                                   |
-| ---------------------- | --------------------------- | --------------------------------------------------------------------------------------- |
-| id, user_id            | TEXT                        |                                                                                         |
-| key                    | TEXT NOT NULL               | canonical key: VPA if present (`swiggy.instamart@ybl`), else normalized name (`swiggy`) |
-| display_name           | TEXT                        | editable                                                                                |
-| vpa                    | TEXT NULL                   |                                                                                         |
-| default_category_id    | TEXT NULL                   | denormalized convenience from learned labels                                            |
-| merged_into_id         | TEXT NULL FK counterparties | merge keeps the old key resolvable                                                      |
-| txn_count              | INTEGER DEFAULT 0           | maintained on write                                                                     |
-| last_seen_date         | TEXT                        |                                                                                         |
-| created_at, updated_at | INTEGER                     |                                                                                         |
+| col                    | type                        | notes                                                                                                                                                |
+| ---------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id, user_id            | TEXT                        |                                                                                                                                                      |
+| key                    | TEXT NOT NULL               | canonical key: VPA if present (`swiggy.instamart@ybl`), else normalized name (`swiggy`); gateway VPAs (`razorpay@…`, `payu@…`) fall back to the name |
+| display_name           | TEXT                        | editable                                                                                                                                             |
+| vpa                    | TEXT NULL                   |                                                                                                                                                      |
+| default_category_id    | TEXT NULL                   | denormalized convenience from learned labels                                                                                                         |
+| merged_into_id         | TEXT NULL FK counterparties | merge keeps the old key resolvable                                                                                                                   |
+| txn_count              | INTEGER DEFAULT 0           | maintained on write                                                                                                                                  |
+| last_seen_date         | TEXT                        |                                                                                                                                                      |
+| created_at, updated_at | INTEGER                     |                                                                                                                                                      |
 
 Unique: `(user_id, key)`.
 
@@ -164,19 +164,19 @@ Invariant (service layer + test): `Σ splits.amount_paise = transactions.amount_
 
 ### rules
 
-| col                    | type               | notes                                                                                                                                                                                                                                                                                                |
-| ---------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id, user_id            | TEXT               |                                                                                                                                                                                                                                                                                                      |
-| name                   | TEXT               |                                                                                                                                                                                                                                                                                                      |
-| priority               | INTEGER NOT NULL   | lower runs first; reorder rewrites the column in one batch                                                                                                                                                                                                                                           |
-| enabled                | INTEGER DEFAULT 1  |                                                                                                                                                                                                                                                                                                      |
-| conditions             | TEXT JSON          | `{ all: Condition[] }` where Condition = `{field: 'counterparty_key'\|'vpa'\|'narration'\|'amount'\|'direction'\|'account_id'\|'channel', op: 'eq'\|'contains'\|'regex'\|'between'\|'gte'\|'lte'\|'in', value}`. Regexes are validated (length cap, no catastrophic patterns via a safe-regex check) |
-| category_id            | TEXT FK categories |                                                                                                                                                                                                                                                                                                      |
-| set_tags               | TEXT JSON NULL     | tag ids                                                                                                                                                                                                                                                                                              |
-| set_note               | TEXT NULL          |                                                                                                                                                                                                                                                                                                      |
-| hit_count              | INTEGER DEFAULT 0  |                                                                                                                                                                                                                                                                                                      |
-| last_hit_at            | INTEGER NULL       |                                                                                                                                                                                                                                                                                                      |
-| created_at, updated_at | INTEGER            |                                                                                                                                                                                                                                                                                                      |
+| col                    | type               | notes                                                                                                                                                                                                                                                                                                           |
+| ---------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id, user_id            | TEXT               |                                                                                                                                                                                                                                                                                                                 |
+| name                   | TEXT               |                                                                                                                                                                                                                                                                                                                 |
+| priority               | INTEGER NOT NULL   | lower runs first; reorder rewrites the column in one batch                                                                                                                                                                                                                                                      |
+| enabled                | INTEGER DEFAULT 1  |                                                                                                                                                                                                                                                                                                                 |
+| conditions             | TEXT JSON          | `{ all: Condition[] }` where Condition = `{field: 'counterparty_key'\|'vpa'\|'narration'\|'amount'\|'direction'\|'account_id'\|'channel', op: 'eq'\|'contains'\|'regex'\|'between'\|'gte'\|'lte'\|'in', value}`. Regexes are validated (≤200 chars, linear scan rejects nested quantifiers/backrefs/lookbehind) |
+| category_id            | TEXT FK categories |                                                                                                                                                                                                                                                                                                                 |
+| set_tags               | TEXT JSON NULL     | tag ids                                                                                                                                                                                                                                                                                                         |
+| set_note               | TEXT NULL          |                                                                                                                                                                                                                                                                                                                 |
+| hit_count              | INTEGER DEFAULT 0  |                                                                                                                                                                                                                                                                                                                 |
+| last_hit_at            | INTEGER NULL       |                                                                                                                                                                                                                                                                                                                 |
+| created_at, updated_at | INTEGER            |                                                                                                                                                                                                                                                                                                                 |
 
 ### learned_labels
 
@@ -191,7 +191,9 @@ Invariant (service layer + test): `Σ splits.amount_paise = transactions.amount_
 | hit_count, last_hit_at | INTEGER                                  |                                |
 | created_at, updated_at | INTEGER                                  |                                |
 
-Unique: `(user_id, counterparty_id, IFNULL(direction,'*'), IFNULL(account_id,'*'))` (expression index). Most-specific match wins (account+direction, then direction, then any).
+Unique: `(user_id, counterparty_id, IFNULL(direction,'*'), IFNULL(account_id,'*'))` (expression index). Most-specific match wins: account+direction, then account, then direction, then any. Re-labelling the same scope updates the existing row. Counterparty merges move labels to the target (the target wins on a scope clash).
+
+**Rule semantics (Phase 3).** All conditions must hold. Text comparisons are case-insensitive. `narration` means the bank narration, or the note for manual entries. The `counterparty_key` field holds the normalized payee key: the VPA, or the cleaned name for gateway VPAs and names. Text fed to a regex is capped at 500 characters. Stored conditions are re-validated on load, and an invalid row never matches. `set_tags`/`set_note` apply when a rule categorizes a **new** transaction (import or manual create), not on "apply to past".
 
 ### imports
 
@@ -243,17 +245,19 @@ Unique: `(user_id, category_id, IFNULL(month,'*'))`. A month-specific row overri
 
 ### audit_log
 
-| col         | type                       | notes                                                                                                                |
-| ----------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| id, user_id | TEXT                       |                                                                                                                      |
-| batch_id    | TEXT                       | groups one user action (undo unit)                                                                                   |
-| action      | TEXT                       | `recategorize\|bulk_recategorize\|apply_learned\|delete_txn\|merge_category\|merge_counterparty\|revert_import\|...` |
-| entity      | TEXT, entity_id TEXT       |                                                                                                                      |
-| before      | TEXT JSON, after TEXT JSON |                                                                                                                      |
-| undone_at   | INTEGER NULL               |                                                                                                                      |
-| created_at  | INTEGER                    |                                                                                                                      |
+| col         | type                       | notes                                                                                                                                                                                |
+| ----------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| id, user_id | TEXT                       |                                                                                                                                                                                      |
+| batch_id    | TEXT                       | groups one user action (undo unit)                                                                                                                                                   |
+| action      | TEXT                       | undoable: `delete_txn\|recategorize\|bulk_recategorize\|apply_learned\|apply_rule\|auto_categorize\|learn_label`; informational: `merge_category\|merge_counterparty\|revert_import` |
+| entity      | TEXT, entity_id TEXT       |                                                                                                                                                                                      |
+| before      | TEXT JSON, after TEXT JSON |                                                                                                                                                                                      |
+| undone_at   | INTEGER NULL               |                                                                                                                                                                                      |
+| created_at  | INTEGER                    |                                                                                                                                                                                      |
 
 Index `(user_id, batch_id)` and `(user_id, created_at)`. Entries older than 180 days are pruned by cron.
+
+Category actions store `before`/`after` as `{categoryId, categorizedBy, ruleId, learnedLabelId, confidence, reason, isSplit, splits?}`. Bulk rows are written with `INSERT … SELECT json_object(…)`, and their ids are `lower(hex(randomblob(16)))`. Undo restores a row only while it still holds `after.categoryId`. `learn_label` stores the previous label row (or null, which means delete on undo).
 
 ## 4. Reporting view: `v_ledger` (added in Phase 4)
 
@@ -319,4 +323,5 @@ fingerprint = 'f1' + murmur3_x86_128_hex(
 - 2026-11-01: ATM = transfer to Cash; refunds = negative spend; Workers Free plan; React 19.
 - 2026-11-01 (Phase 0): added `categories.slug`; FTS5 and `v_ledger` deferred to the phases that use them.
 - 2026-11-01 (Phase 2): fingerprints switched to MurmurHash3-128 (`f1` prefix) before any production data existed. Preview payloads live in R2 (`preview.json`) between preview and commit. `imports.parser_profile_id` stores the built-in profile id or a saved profile id.
+- 2026-11-02 (Phase 3): no schema change. Imports now set `channel`, `vpa`, `ifsc_prefix`, `counterparty_id`, `rule_id`/`learned_label_id`, `confidence` and `categorization_reason`, and fill `ref_no` from the narration when the statement has no ref column. An accepted ATM transfer adds a Cash-account `in` leg with fingerprint `atm:<bank row fingerprint>` and the same `import_id`/`transfer_group_id`. A `categorized_by='keyword'` reason of `keyword:channel:<ch>` means a channel fallback (ATM, interest, charges).
 - 2026-11-01 (Phase 1): every user gets a seeded **Cash** account on first login. Manual transactions have `channel = NULL`, `source = 'manual'`, `categorized_by = 'manual'` (or `'none'` → Uncategorized). Balances count only transactions dated on/after `opening_balance_date`. Category merge drops source budgets that collide with a target budget for the same month. Recategorizations write `audit_log` rows (`recategorize`); deletes write full snapshots (`delete_txn`) for undo.
