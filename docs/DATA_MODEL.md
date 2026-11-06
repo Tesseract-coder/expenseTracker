@@ -122,6 +122,7 @@ Unique: `(user_id, key)`.
 | confidence               | REAL NULL                                      | 0–1; display only, never money                                                          |
 | categorization_reason    | TEXT NULL                                      | e.g. `keyword:swiggy`                                                                   |
 | ai_suggested_category_id | TEXT NULL                                      | suggestion only, not applied                                                            |
+| ai_confidence            | REAL NULL                                      | 0–1, the AI suggestion's confidence (Phase 5, migration `0004`)                         |
 | is_split                 | INTEGER DEFAULT 0                              |                                                                                         |
 | note                     | TEXT NULL                                      |                                                                                         |
 | status                   | TEXT CHECK                                     | `confirmed\|needs_review`                                                               |
@@ -212,7 +213,7 @@ Unique: `(user_id, counterparty_id, IFNULL(direction,'*'), IFNULL(account_id,'*'
 | error                                                                   | TEXT NULL                                 | sanitized message, no row content                              |
 | created_at, committed_at                                                | INTEGER                                   |                                                                |
 
-"Revert import" deletes its transactions (with audit), keeping the file.
+"Revert import" deletes its transactions (with audit), keeping the file. SMS-paste imports (`source = sms`) have no R2 file; each alert e-mail creates a committed `email` import per matched account.
 
 ### parser_profiles
 
@@ -241,7 +242,7 @@ Unique: `(user_id, category_id, IFNULL(month,'*'))`. A month-specific row overri
 
 ### settings
 
-`user_id, key, value(JSON), PK(user_id, key)`. Phase 4 reads and writes `year_mode`, `targets` (adds `investmentRate`; stored targets are merged over defaults) and `emergency_fund_paise` through `GET/PATCH /api/settings`. Keys: `year_mode ('calendar'|'fy')`, `targets {savingsRate, needs, wants, savings, emergencyMonths}`, `emergency_fund_paise`, `privacy_blur_default`, `atm_as_spend`, `ai_enabled`, `last_account_id`, `theme`.
+`user_id, key, value(JSON), PK(user_id, key)`. Phase 4 reads and writes `year_mode`, `targets` (adds `investmentRate`; stored targets are merged over defaults) and `emergency_fund_paise` through `GET/PATCH /api/settings`. Keys: `year_mode ('calendar'|'fy')`, `targets {savingsRate, needs, wants, savings, emergencyMonths}`, `emergency_fund_paise`, `privacy_blur_default`, `atm_as_spend`, `ai_enabled`, `last_account_id`, `theme`. Phase 5 adds `ai_auto_apply` (boolean, default false).
 
 ### audit_log
 
@@ -315,3 +316,4 @@ fingerprint = 'f1' + murmur3_x86_128_hex(
 - 2026-11-02 (Phase 4): migration `0002` adds `recurring_series.last_amount_paise` and an index on `recurring_series.counterparty_id`. Migration `0003` (hand-written) creates the `v_ledger` view. Budgets may only target spending categories or groups.
 - 2026-11-02 (Phase 3): no schema change. Imports now set `channel`, `vpa`, `ifsc_prefix`, `counterparty_id`, `rule_id`/`learned_label_id`, `confidence` and `categorization_reason`, and fill `ref_no` from the narration when the statement has no ref column. An accepted ATM transfer adds a Cash-account `in` leg with fingerprint `atm:<bank row fingerprint>` and the same `import_id`/`transfer_group_id`. A `categorized_by='keyword'` reason of `keyword:channel:<ch>` means a channel fallback (ATM, interest, charges).
 - 2026-11-01 (Phase 1): every user gets a seeded **Cash** account on first login. Manual transactions have `channel = NULL`, `source = 'manual'`, `categorized_by = 'manual'` (or `'none'` → Uncategorized). Balances count only transactions dated on/after `opening_balance_date`. Category merge drops source budgets that collide with a target budget for the same month. Recategorizations write `audit_log` rows (`recategorize`); deletes write full snapshots (`delete_txn`) for undo.
+- 2026-11-02 (Phase 5): migration `0004` adds `transactions.ai_confidence`. Pasted SMS rows have `source = 'sms'`, `status = 'confirmed'`; e-mail alert rows `source = 'email'`, `status = 'needs_review'`. A later statement row that near-duplicates an alert row overwrites its narration, ref, balance, channel and VPA and confirms it (fingerprint and id are kept). AI-applied categories use `categorized_by = 'ai'`, reason `ai:suggested`, audit action `ai_categorize`.

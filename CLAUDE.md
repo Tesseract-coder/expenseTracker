@@ -51,6 +51,8 @@ Single-user personal finance PWA on Cloudflare (Workers + Static Assets, D1, R2)
   - no donuts or dual axes
   - Recharts only in lazy chunks
 - **Exports**: build sheets with `reportSheets` / `transactionRows` / `toCsv` (shared, pure), write XLSX with `@kharcha/shared/spreadsheet#writeXlsx` (browser only). Never bypass `safeCell` (formula injection).
+- **Bank alerts** (`packages/shared/src/alerts`): SMS are parsed in the browser, e-mails in the Worker, both with `parseAlerts`. Alerts feed the statement pipeline (`createAlertImport` → `previewImport` → `commitImport`); never add a separate insert path. New alert format: case in `parse.test.ts` (real wording, redacted) and, if it changes the paste fixture, `UPDATE_GOLDEN=1` for `fixtures/alerts`. Rebuild narrations in bank-statement shape so the normalizer keeps working.
+- **AI** (`categorize/ai.ts` + `services/ai.ts`): gated by `aiEnabled(env)`; the model only picks category numbers from your list and every answer goes through `parseAiResponse`. Never send more than narration, payee, VPA, rounded amount, direction and channel, and log only counts.
 - **Demo data**: `pnpm seed:demo` (see DEPLOYMENT §10).
 - **Rate limits**: `rateLimit(scope, { skip })`. Chunked endpoints pass `skip: isContinuation` so only the first request of a run counts.
 - **Category identity**: seeded categories are referenced by `slug` (stable), never by ID or name.

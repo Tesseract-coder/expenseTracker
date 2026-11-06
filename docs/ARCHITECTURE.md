@@ -154,7 +154,7 @@ manual override (never touched) → user rules (priority asc) → learned labels
 
 - Plain category changes are restored with a single `UPDATE … FROM audit_log`. A row is restored only while it still holds the category the batch gave it, so later edits win. Deleted rules or labels are restored as null.
 - Split changes and learned labels are restored individually.
-- Undoable actions: `delete_txn`, `recategorize`, `bulk_recategorize`, `apply_learned`, `apply_rule`, `auto_categorize`, `learn_label`.
+- Undoable actions: `delete_txn`, `recategorize`, `bulk_recategorize`, `apply_learned`, `apply_rule`, `auto_categorize`, `learn_label`, `ai_categorize`.
 
 ### 4.5 API surface
 
@@ -174,8 +174,22 @@ manual override (never touched) → user rules (priority asc) → learned labels
 | `GET /api/learned-labels`, `PATCH/DELETE /api/learned-labels/:id`                                    | List with hit counts, change category, enable/disable, forget.                                                                                                                                                                                    |
 | `GET /api/counterparties?q&limit`, `PATCH /api/counterparties/:id`, `POST …/:id/merge`               | Payees: search (name or key), rename, merge (moves transactions and labels; the old key keeps resolving to the target).                                                                                                                           |
 | `GET /api/tags`                                                                                      | Autocomplete.                                                                                                                                                                                                                                     |
+| `POST /api/alerts/preview`, `POST /api/alerts/commit`                                                | Pasted bank SMS (§4.6): parsed rows + chosen account per row → one `imports` row per account (source `sms`), then the normal preview/commit. Rate-limited (`import`).                                                                             |
+| `POST /api/transactions/confirm` `{ids ≤ 100}`                                                       | Marks `needs_review` rows (e-mail alerts) as confirmed. `GET /api/transactions?status=needs_review` lists them. Rate-limited (`bulk`).                                                                                                            |
+| `POST /api/categorization/ai-suggest` `{transactionIds ≤ 20}`                                        | Workers AI suggestions (§4.6); 403 `ai_disabled` when off, 502 `ai_unavailable` on model errors. Rate-limited (`ai`).                                                                                                                             |
+| `GET /api/me`                                                                                        | User plus `features {ai, emailAlerts}` so the UI hides what isn't configured.                                                                                                                                                                     |
 
 ID lists are passed to SQL as one JSON parameter (`in (select value from json_each(?))`, `db/batch.ts#inJson`) to stay under D1's 100-bound-parameter limit. Validation errors return `400 validation_error` with `issues[{path, message}]`, which forms map to fields.
+
+### 4.6 Bank alerts and AI suggestions (Phase 5, implemented)
+
+Alerts reuse the statement pipeline instead of a second write path, so dedup, transfers, categorization, history and revert behave the same.
+
+- **SMS paste** (`/import/sms`): `parseAlerts` (`packages/shared/src/alerts`) runs **in the browser**. It splits the paste into messages and skips OTPs, collect requests, reminders, failed payments and offers. For each message it extracts amount, direction, date, masked digits, bank, channel, ref and payee. Narrations are rebuilt in bank-statement shape (`UPI/DR/<ref>/<payee>/<vpa>`, `POS <merchant>`, `ATM WDL`, `NEFT CR-…`), so the normalizer, learned labels and rules work unchanged. `matchAlertAccount` picks the account by last 3–4 digits, narrowed by bank and card hint, and returns null when ambiguous; the user fixes those rows. `POST /api/alerts/preview` creates one `imports` row per account (source `sms`, no R2 file) and runs `previewImport`; commit loops `commitImport`. Abandoned SMS previews are hidden from import history.
+- **E-mail alerts** (optional, `email` handler in `src/index.ts` → `src/email.ts`): only envelope senders in `ALERT_SENDERS`, ≤ 256 KB. `postal-mime` parses the MIME; `emailToText` strips HTML, forward headers and quotes; the same parser and matcher run in the Worker. The owner is the first `ALLOWED_EMAILS` user. Unmatched alerts are dropped and counted. Rows are inserted as `status = needs_review`, `source = email`.
+- **Statement after an alert:** near-duplicate matching treats alert rows as having no narration and is **exclusive** (each existing row absorbs at most one incoming row). When a statement row matches an `sms`/`email` row, commit **enriches** that row (bank narration, ref, balance, channel, VPA) and confirms it instead of inserting (`ENRICH_ALERTS_SQL`, counted as `alertsConfirmed`).
+- **Needs review** rows count in totals and balances immediately. They're listed under Transactions → Needs review and confirmed in bulk or by saving one.
+- **Workers AI** (flag `AI_ENABLED=true` + `AI` binding): the inbox's "Ask AI" sends ≤ 20 uncategorized rows. The prompt lists your categories by number, so the model can't invent one; JSON mode plus `parseAiResponse` validates every answer (known numbers only, no income category for money out, confidence clamped, < 0.4 dropped). Suggestions are stored in `ai_suggested_category_id` / `ai_confidence` and shown as chips. With the `aiAutoApply` setting (off by default), suggestions ≥ 0.9 are applied as `categorized_by = 'ai'` with an `ai_categorize` audit batch (undoable). A categorization re-run keeps AI categories when the engine finds nothing. Sent to the model: narration, payee, VPA, rounded amount, direction, channel; logs record only counts.
 
 ## 5. Reports architecture (Phase 4, implemented)
 
@@ -274,3 +288,9 @@ All reports read the **`v_ledger`** view (`migrations/0003_v_ledger.sql`, DATA_M
     - For the period that contains today, only months up to today count; past and future periods use their own months.
 30. **Phase 4: cron triggers.** Workers Free allows 5 cron triggers per account. Only production (and local dev) run the daily job; preview doesn't. The job logs only counts.
 31. **Phase 4: health weights.** Savings rate 30, investment rate 15, needs/wants/savings split 15, budget adherence 15, spending trend 10, lifestyle creep 10, emergency fund 10. Bands: Excellent ≥ 80, Good ≥ 60, Needs attention ≥ 40, otherwise Off-track. The split scores 100 − 200 × the summed overshoot, i.e. needs over target + wants over target + savings under target.
+
+32. **Phase 5: SMS parsed on the device.** The spec doesn't say where SMS are parsed. Parsing in the browser keeps raw message text off the server (only structured rows are sent) and lets you fix accounts and dates before anything is written.
+33. **Phase 5: e-mail owner and unmatched alerts.** Inbound mail has no Access identity, so alerts belong to the first `ALLOWED_EMAILS` user. Alerts that match no account are dropped (counted in logs) rather than guessed. Envelope senders can be spoofed; the sender allow-list plus `needs_review` limit the damage to review items.
+34. **Phase 5: needs-review rows count in totals.** Bank alerts are almost always real, so reports don't lag. Change to exclude them if forged mail ever becomes a problem.
+35. **Phase 5: exclusive near-duplicate matching.** Previously two same-amount incoming rows could both be flagged as near-duplicates of one existing row. Now each existing row absorbs at most one, which also changes statement-vs-manual matching slightly (more accurate).
+36. **Phase 5: AI narrative summary not built.** The spec's optional AI-written health summary is left out; the score and suggestions stay deterministic. AI is off by default and auto-apply is a separate opt-in.
