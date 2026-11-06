@@ -38,7 +38,7 @@ Kharcha is a single-user, mobile-first PWA for tracking personal expenses and ca
 | D8  | **Aggregations in SQL** using a `v_ledger` view (§4)                                                                                                                                                                       | Splits and transfers are handled once, in one place. Every report query reads from the view and filters by `user_id`, a date range and `excluded = 0`.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | D9  | **Money as `INTEGER` paise, signed only at the edges**                                                                                                                                                                     | The `amount_paise` column is always positive and `direction` is `in` or `out`. Signed values are derived in SQL (`CASE direction ...`). The UI formats with `Intl.NumberFormat('en-IN', {style:'currency', currency:'INR'})`.                                                                                                                                                                                                                                                                                                                                                                      |
 | D10 | **Auth = Cloudflare Access + JWT verification in the Worker**                                                                                                                                                              | `jose.createRemoteJWKSet(https://<ACCESS_TEAM_DOMAIN>/cdn-cgi/access/certs)` is cached in module scope. The Worker checks `iss`, `aud` (= `ACCESS_AUD`) and `exp`, then maps the JWT `email` claim to a `users` row (auto-created on first login if it's in `ALLOWED_EMAILS`). There's a local bypass only when `AUTH_MODE=dev` **and** the request host is `localhost`/`127.0.0.1` **and** `APP_ENV != production` (user `dev@kharcha.local`), so a misconfigured deployment fails closed with 500 `auth_misconfigured`. Access _service tokens_ (no `email` claim) may reach only `/api/health`. |
-| D11 | **TanStack Query + optimistic updates; IndexedDB persistence** of the query cache for the last-viewed dashboard                                                                                                            | Gives an offline read-only shell. Writes require the network (no offline write queue in v1; see §8).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D11 | **TanStack Query + optimistic updates**; IndexedDB persistence of the query cache was planned but deliberately not built (§9.42)                                                                                           | Gives an offline read-only shell. Writes require the network (no offline write queue in v1; see §8).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ## 3. Repository layout
 
@@ -154,7 +154,7 @@ manual override (never touched) → user rules (priority asc) → learned labels
 
 - Plain category changes are restored with a single `UPDATE … FROM audit_log`. A row is restored only while it still holds the category the batch gave it, so later edits win. Deleted rules or labels are restored as null.
 - Split changes and learned labels are restored individually.
-- Undoable actions: `delete_txn`, `recategorize`, `bulk_recategorize`, `apply_learned`, `apply_rule`, `auto_categorize`, `learn_label`, `ai_categorize`.
+- Undoable actions: `delete_txn`, `recategorize`, `bulk_recategorize`, `apply_learned`, `apply_rule`, `auto_categorize`, `learn_label`, `ai_categorize`. A backup restore clears the audit log, so older undo tokens stop working.
 
 ### 4.5 API surface
 
@@ -178,6 +178,9 @@ manual override (never touched) → user rules (priority asc) → learned labels
 | `POST /api/transactions/confirm` `{ids ≤ 100}`                                                       | Marks `needs_review` rows (e-mail alerts) as confirmed. `GET /api/transactions?status=needs_review` lists them. Rate-limited (`bulk`).                                                                                                            |
 | `POST /api/categorization/ai-suggest` `{transactionIds ≤ 20}`                                        | Workers AI suggestions (§4.6); 403 `ai_disabled` when off, 502 `ai_unavailable` on model errors. Rate-limited (`ai`).                                                                                                                             |
 | `GET /api/me`                                                                                        | User plus `features {ai, emailAlerts}` so the UI hides what isn't configured.                                                                                                                                                                     |
+| `GET /api/backup?table&after`, `GET /api/backup/status`                                              | Backup export, one table page at a time (1,000 rows; §4.7). Only the first page counts against the `backup` limit.                                                                                                                                |
+| `POST /api/backup/restore`, `…/restore/chunk`, `…/restore/finish`                                    | Restore (§4.7): start wipes and records the expected counts, chunks insert ≤ 400 rows each, finish verifies the counts.                                                                                                                           |
+| `GET /api/export/transactions?…&offset`                                                              | Export rows, 2,500 per page (`next` offset); payee totals only on the first page.                                                                                                                                                                 |
 
 ID lists are passed to SQL as one JSON parameter (`in (select value from json_each(?))`, `db/batch.ts#inJson`) to stay under D1's 100-bound-parameter limit. Validation errors return `400 validation_error` with `issues[{path, message}]`, which forms map to fields.
 
@@ -190,6 +193,36 @@ Alerts reuse the statement pipeline instead of a second write path, so dedup, tr
 - **Statement after an alert:** near-duplicate matching treats alert rows as having no narration and is **exclusive** (each existing row absorbs at most one incoming row). When a statement row matches an `sms`/`email` row, commit **enriches** that row (bank narration, ref, balance, channel, VPA) and confirms it instead of inserting (`ENRICH_ALERTS_SQL`, counted as `alertsConfirmed`).
 - **Needs review** rows count in totals and balances immediately. They're listed under Transactions → Needs review and confirmed in bulk or by saving one.
 - **Workers AI** (flag `AI_ENABLED=true` + `AI` binding): the inbox's "Ask AI" sends ≤ 20 uncategorized rows. The prompt lists your categories by number, so the model can't invent one; JSON mode plus `parseAiResponse` validates every answer (known numbers only, no income category for money out, confidence clamped, < 0.4 dropped). Suggestions are stored in `ai_suggested_category_id` / `ai_confidence` and shown as chips. With the `aiAutoApply` setting (off by default), suggestions ≥ 0.9 are applied as `categorized_by = 'ai'` with an `ai_categorize` audit batch (undoable). A categorization re-run keeps AI categories when the engine finds nothing. Sent to the model: narration, payee, VPA, rounded amount, direction, channel; logs record only counts.
+
+### 4.7 PDF statements, backup and restore (Phase 6, implemented)
+
+- **PDF import** happens on the device:
+  - `readStatement.ts` lazy-loads `readPdf.ts`, which loads pdf.js 6.4 with its worker from the same origin. pdf.js runs with `isEvalSupported: false` and no font loading, and its chunk is excluded from the service-worker precache.
+  - `readPdfStatement(pdfjs, data, {password})` (shared, with pdf.js passed in) maps pdf.js `PasswordException` codes to `password_needed` / `password_incorrect`. The password lives only in the password step's component state.
+  - `pdfPagesToGrid` (shared, pure):
+    - groups text items into lines by baseline;
+    - finds the header line by keyword, merging a second header line right below it;
+    - splits header cells that pdf.js merged ("Value Dt Withdrawal Amt.") by segmenting them into known profile aliases;
+    - assigns each item to the header column it overlaps most. Merged amount or date items are split into words; runs of text stay together.
+  - Lines that hold only text, right under a transaction row, are wrapped cells and are joined in the layout step. When most wrapped cells break at the same character count, that column is joined without spaces (mid-word wraps), except after a fragment that ended short.
+  - Without any header, columns come from x-ranges that no amount-bearing line covers.
+  - The result is a normal `Grid`, so profile detection, the wizard, `parseGrid`, dedup and categorization are unchanged.
+  - The upload keeps the original, still-encrypted PDF in R2. The server checks the `%PDF-` magic bytes and stores a content type derived from the extension.
+- **Backup** is generic over the Drizzle schema (`services/backup.ts#tableMeta`): column lists and foreign keys come from `getTableConfig`.
+  - Export pages by `rowid`, filters by `user_id` (`transaction_tags` through its transaction), and strips `user_id` and the `restore_state` setting.
+  - The file holds 13 tables in reference order (`BACKUP_TABLES`).
+  - Not included: `audit_log`, `recurring_series` (cache), `users` and R2 files.
+- **Restore** never runs as one big request (Free-plan CPU):
+  1. `start` deletes everything the user owns in one batch, children first (categories are deleted in two steps because `parent_id` is RESTRICT). It keeps the `category_seed_version` setting, so a request on another isolate can't re-seed categories mid-restore. It stores `restore_state {id, startedAt, counts}`.
+  2. `chunk` inserts with `INSERT … SELECT json_extract(...) FROM json_each(?2)`:
+     - `user_id` is set from the session;
+     - only known columns are accepted (unknown → 400);
+     - JSON columns are validated with the API's schemas (rule conditions with the regex safety check, column mappings, settings JSON);
+     - every foreign key must point at the same user's rows. Rows that fail are filtered out, and a count mismatch → 400.
+     - Self-references (`BACKUP_SELF_LINKS`: category parent, merged payee, reimbursement link) are inserted as null, then restored in a `links` pass once all rows exist.
+     - Settings upsert, because the seed version survived the wipe.
+  3. `finish` compares every table's count with the declared counts (409 `restore_incomplete` otherwise) and clears the marker.
+  - A half-finished restore shows a warning, and restoring the same file again is always safe.
 
 ## 5. Reports architecture (Phase 4, implemented)
 
@@ -237,7 +270,8 @@ All reports read the **`v_ledger`** view (`migrations/0003_v_ledger.sql`, DATA_M
 
 - Access JWT is verified on every `/api/*` request. `/api/health` returns only `{status, version}`, but it's still behind Access. CI smoke tests use an **Access service token** (`CF-Access-Client-Id/Secret`).
 - Security headers: Worker middleware for API responses; a `_headers` file in `apps/web/public` for static assets, because static assets bypass the Worker. Strict CSP: `default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'` (Recharts/shadcn inline styles); `connect-src 'self'`; `frame-ancestors 'none'`. Plus HSTS, `nosniff`, `Referrer-Policy: no-referrer` and a `Permissions-Policy`.
-- R2 bucket is private. Downloads stream through the Worker after the auth check.
+- R2 bucket is private. Downloads stream through the Worker after the auth check, as attachments with a content type derived from the file extension.
+- CSRF: `middleware/sameOrigin.ts` refuses POST/PUT/PATCH/DELETE whose `Sec-Fetch-Site` isn't same-origin/none or whose `Origin` host differs. The API also accepts the Access cookie, and multipart uploads are "simple" cross-site requests. JSON endpoints were already protected by the content-type check. Full review: `docs/SECURITY.md`.
 - Rate limiting uses the **Workers Rate Limiting binding** on upload/bulk/export routes.
 - Every owned table has a `user_id`, and every repository function takes `userId` as its first argument. A test asserts that no query in repositories lacks a `user_id` predicate.
 - No analytics. Workers Logs is enabled with sampling, and the logger has an allow-list of fields.
@@ -294,3 +328,17 @@ All reports read the **`v_ledger`** view (`migrations/0003_v_ledger.sql`, DATA_M
 34. **Phase 5: needs-review rows count in totals.** Bank alerts are almost always real, so reports don't lag. Change to exclude them if forged mail ever becomes a problem.
 35. **Phase 5: exclusive near-duplicate matching.** Previously two same-amount incoming rows could both be flagged as near-duplicates of one existing row. Now each existing row absorbs at most one, which also changes statement-vs-manual matching slightly (more accurate).
 36. **Phase 5: AI narrative summary not built.** The spec's optional AI-written health summary is left out; the score and suggestions stay deterministic. AI is off by default and auto-apply is a separate opt-in.
+
+37. **Phase 6: PDF parsing in the browser.** As with spreadsheets (item 1), pdf.js would blow the Worker's CPU budget, and parsing on the device keeps the password there. The server never sees decrypted content; it stores the encrypted original.
+38. **Phase 6: restore replaces, it doesn't merge.** Merging would need id remapping across every reference (seeded categories have different ids per user) and conflict rules. Replace is what people expect from "restore". The UI requires a confirmation and offers "Back up current data first". Restore also clears undo history.
+39. **Phase 6: restored transactions keep their original `source`.** `source = 'restore'` exists in the enum, but keeping `sms` / `email` / `import` preserves alert enrichment and import history. `restore` stays reserved.
+40. **Phase 6: Lighthouse PWA category no longer exists.** Lighthouse 12 removed the PWA category, so "PWA ≥ 90" can't be measured. Instead, Chrome's installability check (`Page.getInstallabilityErrors`) returns no errors, the service worker controls the page, and the offline shell loads.
+41. **Phase 6: Lighthouse performance is about 85, not ≥ 90.** Measured locally on mobile with simulated slow 4G + 4× CPU: Home ~85, Transactions ~87, More ~86, Reports ~81. Observed (unthrottled) FCP is 0.1 s and LCP 0.4 s. The rest is about 200 KB gzip of client-rendered JavaScript (react-dom ~85 KB, zod ~48 KB, react-router ~31 KB) followed by the data request.
+    - Further options: move response validation to `zod/mini`, preload the first API calls, or render the shell on the server. Each costs more than it gains for a single-user app behind Access.
+    - SEO is intentionally low: the app sends `noindex` and is behind Access.
+42. **Phase 6: no query-cache persistence.** D11 planned IndexedDB persistence of the last-viewed dashboard. It isn't implemented, and I recommend keeping it that way: it would leave financial data at rest in the browser. The offline shell still loads and asks for a connection.
+43. **Phase 6: perf at 11k transactions** (`pnpm seed:demo --months 24 --scale 12 --persist-to <dir>`):
+    - Every API endpoint answers in ≤ 45 ms locally, export pages included.
+    - The list no longer sorts all rows per page (index matches the keyset order; fewer D1 rows read).
+    - Export is paged (one 11k-row response was about 18 ms of JSON CPU, over the 10 ms Free budget). Backup pages (1,000 rows) are about 3.4 ms.
+    - Large statement previews remain item 14's open decision.

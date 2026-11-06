@@ -1,15 +1,23 @@
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter } from 'react-router';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AddPage } from '@/features/add/AddPage';
-import { AccountsPage } from '@/features/accounts/AccountsPage';
-import { CategoriesPage } from '@/features/categories/CategoriesPage';
-import { InboxPage } from '@/features/categorize/InboxPage';
 import { HomePage } from '@/features/home/HomePage';
-import { MorePage } from '@/features/more/MorePage';
-import { TransactionsPage } from '@/features/transactions/TransactionsPage';
 import { AppLayout } from './AppLayout';
 import { NotFoundPage } from './NotFoundPage';
+
+// Every screen except Home is code-split, so the first load only parses what Home needs
+// (Phase 6 Lighthouse pass). The chunks are precached by the service worker.
+const page = <K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) =>
+  lazy(() => load().then((m) => ({ default: m[name] })));
+const TransactionsPage = page(
+  () => import('@/features/transactions/TransactionsPage'),
+  'TransactionsPage',
+);
+const AddPage = page(() => import('@/features/add/AddPage'), 'AddPage');
+const MorePage = page(() => import('@/features/more/MorePage'), 'MorePage');
+const AccountsPage = page(() => import('@/features/accounts/AccountsPage'), 'AccountsPage');
+const CategoriesPage = page(() => import('@/features/categories/CategoriesPage'), 'CategoriesPage');
+const InboxPage = page(() => import('@/features/categorize/InboxPage'), 'InboxPage');
 
 // Import screens are code-split; the spreadsheet parser loads only when a file is chosen.
 const ImportPage = lazy(() =>
@@ -31,6 +39,9 @@ const RulesPage = lazy(() =>
 const PayeesPage = lazy(() =>
   import('@/features/categorize/PayeesPage').then((m) => ({ default: m.PayeesPage })),
 );
+const BackupPage = lazy(() =>
+  import('@/features/more/BackupPage').then((m) => ({ default: m.BackupPage })),
+);
 const lazyPage = (el: React.ReactNode) => (
   <Suspense fallback={<Skeleton className="h-40 w-full" />}>{el}</Suspense>
 );
@@ -41,13 +52,21 @@ export const routes = [
     element: <AppLayout />,
     children: [
       { index: true, element: <HomePage />, handle: { title: 'Kharcha' } },
-      { path: 'transactions', element: <TransactionsPage />, handle: { title: 'Transactions' } },
-      { path: 'add', element: <AddPage />, handle: { title: 'Add transaction' } },
+      {
+        path: 'transactions',
+        element: lazyPage(<TransactionsPage />),
+        handle: { title: 'Transactions' },
+      },
+      { path: 'add', element: lazyPage(<AddPage />), handle: { title: 'Add transaction' } },
       { path: 'reports', element: lazyPage(<ReportsPage />), handle: { title: 'Reports' } },
-      { path: 'more', element: <MorePage />, handle: { title: 'More' } },
-      { path: 'more/accounts', element: <AccountsPage />, handle: { title: 'Accounts' } },
-      { path: 'more/categories', element: <CategoriesPage />, handle: { title: 'Categories' } },
-      { path: 'inbox', element: <InboxPage />, handle: { title: 'Needs labelling' } },
+      { path: 'more', element: lazyPage(<MorePage />), handle: { title: 'More' } },
+      { path: 'more/accounts', element: lazyPage(<AccountsPage />), handle: { title: 'Accounts' } },
+      {
+        path: 'more/categories',
+        element: lazyPage(<CategoriesPage />),
+        handle: { title: 'Categories' },
+      },
+      { path: 'inbox', element: lazyPage(<InboxPage />), handle: { title: 'Needs labelling' } },
       {
         path: 'more/rules',
         element: lazyPage(<RulesPage />),
@@ -64,6 +83,11 @@ export const routes = [
         path: 'more/imports',
         element: lazyPage(<ImportsHistoryPage />),
         handle: { title: 'Import history' },
+      },
+      {
+        path: 'more/backup',
+        element: lazyPage(<BackupPage />),
+        handle: { title: 'Backup & restore' },
       },
       { path: '*', element: <NotFoundPage />, handle: { title: 'Not found' } },
     ],

@@ -5,8 +5,10 @@ import { notFound } from './lib/errors';
 import { accessAuth, type JwksProvider } from './middleware/accessAuth';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
+import { sameOrigin } from './middleware/sameOrigin';
 import { accountRoutes } from './routes/accounts';
 import { alertRoutes } from './routes/alerts';
+import { backupRoutes } from './routes/backup';
 import { categoryRoutes } from './routes/categories';
 import {
   categorizationRoutes,
@@ -51,6 +53,7 @@ export function createApp(deps: AppDeps = {}) {
       await next();
       c.header('cache-control', 'no-store');
     })
+    .use(sameOrigin)
     .use(accessAuth(deps.jwksProvider))
     .route('/health', healthRoutes)
     .route('/me', meRoutes)
@@ -71,7 +74,8 @@ export function createApp(deps: AppDeps = {}) {
     .route('/budgets', budgetRoutes)
     .route('/recurring', recurringRoutes)
     .route('/settings', settingsRoutes)
-    .route('/export', exportRoutes);
+    .route('/export', exportRoutes)
+    .route('/backup', backupRoutes);
 
   api.onError(errorHandler);
 

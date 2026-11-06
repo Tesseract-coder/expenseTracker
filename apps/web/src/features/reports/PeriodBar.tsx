@@ -78,7 +78,7 @@ export function PeriodBar({ showAccounts = true }: { showAccounts?: boolean }) {
           <Chip
             selected={period.accountIds.length > 0}
             onClick={() => setAccountsOpen(true)}
-            aria-label="Filter accounts"
+            aria-label={`${period.accountIds.length || 'All'} accounts, filter`}
           >
             <Wallet aria-hidden className="size-4" />
             {period.accountIds.length || 'All'}

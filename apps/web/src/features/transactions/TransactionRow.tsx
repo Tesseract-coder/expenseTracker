@@ -1,4 +1,5 @@
 import { Check, Tags } from 'lucide-react';
+import { memo } from 'react';
 import type { AccountDto, CategoryDto, TransactionDto } from '@kharcha/shared';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Money } from '@/components/Money';
@@ -14,7 +15,8 @@ export function transactionTitle(t: TransactionDto, category: CategoryDto | unde
   );
 }
 
-export function TransactionRow({
+/** Memoized: loading another page of the list must not re-render the rows already shown. */
+export const TransactionRow = memo(function TransactionRow({
   txn,
   categoriesById,
   accountsById,
@@ -115,4 +117,4 @@ export function TransactionRow({
       </button>
     </li>
   );
-}
+});

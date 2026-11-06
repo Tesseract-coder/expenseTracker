@@ -307,6 +307,8 @@ export type HealthScoreResponse = z.infer<typeof healthScoreResponseSchema>;
 // ---------------------------------------------------------------------------- export
 
 export const MAX_EXPORT_ROWS = 20_000;
+/** Rows per export request: one big page would exceed the Workers Free CPU budget (JSON). */
+export const EXPORT_PAGE_ROWS = 2_500;
 
 export const exportRowSchema = z.object({
   date: z.string(),
@@ -326,6 +328,8 @@ export type ExportRow = z.infer<typeof exportRowSchema>;
 export const exportResponseSchema = z.object({
   rows: z.array(exportRowSchema),
   truncated: z.boolean(),
+  /** Offset of the next page (pass as `offset`), or null on the last page. */
+  next: z.number().int().nullable().default(null),
   byCounterparty: z.array(
     z.object({ name: z.string(), spend: z.number().int(), count: z.number().int() }),
   ),

@@ -9,6 +9,7 @@ import { OTHER_COLOR, SERIES } from '@/components/charts/tokens';
 import { Money } from '@/components/Money';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { WhenVisible } from '@/components/WhenVisible';
 import { bucketLabel, formatPct } from '@/lib/format';
 import { type PeriodKind, usePeriod } from '@/lib/period';
 import { cn } from '@/lib/utils';
@@ -68,7 +69,7 @@ export function Dashboard() {
       <PeriodBar />
 
       {!t ? (
-        <Skeleton className="h-56 w-full" />
+        <DashboardSkeleton />
       ) : (
         <>
           <Card className="flex flex-col gap-1 p-4">
@@ -116,8 +117,8 @@ export function Dashboard() {
           )}
 
           <ChartCard
-            title="Where it went"
-            subtitle="Spend by group, net of refunds. Tap a group for its categories."
+            title={WHERE_TITLE}
+            subtitle={WHERE_SUBTITLE}
             table={{
               columns: ['Group', 'Spend', 'Share'],
               rows: s.byGroup.map((g) => [
@@ -180,18 +181,42 @@ export function Dashboard() {
               ]),
             }}
           >
-            <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-              <TrendArea
-                data={s.trend.points}
-                series={{ key: 'spend', label: 'Spend', color: SERIES[0] }}
-                labelFormatter={(b) => bucketLabel(b, s.trend.granularity === 'month')}
-                height={160}
-              />
-            </Suspense>
+            <WhenVisible placeholder={<Skeleton className="h-40 w-full" />}>
+              <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+                <TrendArea
+                  data={s.trend.points}
+                  series={{ key: 'spend', label: 'Spend', color: SERIES[0] }}
+                  labelFormatter={(b) => bucketLabel(b, s.trend.granularity === 'month')}
+                  height={160}
+                />
+              </Suspense>
+            </WhenVisible>
           </ChartCard>
         </>
       )}
     </section>
+  );
+}
+
+const WHERE_TITLE = 'Where it went';
+const WHERE_SUBTITLE = 'Spend by group, net of refunds. Tap a group for its categories.';
+
+/** Same shape and height as the loaded dashboard, so nothing below it jumps (CLS). */
+function DashboardSkeleton() {
+  return (
+    <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading dashboard">
+      <Skeleton className="h-[126px] w-full" />
+      <div className="grid grid-cols-2 gap-2">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-[94px] w-full" />
+        ))}
+      </div>
+      {/* The card's own heading renders right away; only its numbers wait for data. */}
+      <ChartCard title={WHERE_TITLE} subtitle={WHERE_SUBTITLE}>
+        <Skeleton className="h-[150px] w-full" />
+      </ChartCard>
+      <Skeleton className="h-[250px] w-full" />
+    </div>
   );
 }
 

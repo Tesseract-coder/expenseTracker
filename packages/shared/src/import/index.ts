@@ -5,3 +5,5 @@ export * from './fingerprint';
 export * from './nearDuplicate';
 export * from './transfers';
 export * from './schemas';
+export * from './pdfLayout';
+export * from './pdfRead';

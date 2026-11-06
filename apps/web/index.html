@@ -6,10 +6,20 @@
     <meta name="theme-color" content="#0f766e" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="description" content="Kharcha — private personal expense and cash-flow tracker." />
     <title>Kharcha</title>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Static shell: paints the header before the app's JavaScript arrives (React replaces it). -->
+    <div id="root">
+      <div class="mx-auto flex min-h-full max-w-lg flex-col" aria-hidden="true">
+        <header
+          class="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur"
+        >
+          <span class="min-h-11 py-3 text-lg font-semibold">Kharcha</span>
+        </header>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

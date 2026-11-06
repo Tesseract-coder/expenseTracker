@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  EXPORT_PAGE_ROWS,
   budgetListResponseSchema,
   exportResponseSchema,
   healthScoreResponseSchema,
@@ -350,6 +351,35 @@ describe('recurring payments', () => {
 });
 
 describe('export', () => {
+  it('pages large exports so each request stays small', async () => {
+    const userId = (await getJson('/api/me')).body.id;
+    const n = EXPORT_PAGE_ROWS + 10;
+    await env.DB.prepare(
+      `insert into transactions (id, user_id, account_id, txn_date, week_start, dow, amount_paise,
+         direction, category_id, source, fingerprint, created_at, updated_at)
+       select 'bulk' || value, ?1, ?2, '2026-10-05', '2026-10-05', 1, 100 + value, 'out', ?3,
+         'manual', 'fp' || value, value, value
+       from json_each(?4)`,
+    )
+      .bind(userId, acc, ids.grocery, JSON.stringify(Array.from({ length: n }, (_, i) => i)))
+      .run();
+    const first = exportResponseSchema.parse(
+      (await getJson(`/api/export/transactions?${OCT}&withPayees=true`)).body,
+    );
+    expect(first.rows).toHaveLength(EXPORT_PAGE_ROWS);
+    expect(first.next).toBe(EXPORT_PAGE_ROWS);
+    expect(first.byCounterparty.length).toBeGreaterThan(0);
+    const second = exportResponseSchema.parse(
+      (await getJson(`/api/export/transactions?${OCT}&offset=${first.next}`)).body,
+    );
+    expect(second).toMatchObject({ next: null, truncated: false, byCounterparty: [] });
+    expect(second.rows).toHaveLength(10);
+    // No row is repeated or skipped across pages.
+    const amounts = new Set([...first.rows, ...second.rows].map((r) => r.amountPaise));
+    expect(amounts.size).toBe(n);
+    expect((await getJson(`/api/export/transactions?${OCT}&offset=-1`)).status).toBe(400);
+  });
+
   it('exports filtered rows with split parts and payee totals', async () => {
     await seedOctober();
     const res = await getJson(`/api/export/transactions?${OCT}&withPayees=true`);

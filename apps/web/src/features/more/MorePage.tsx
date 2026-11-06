@@ -1,6 +1,7 @@
 import {
   ChevronRight,
   ClipboardCheck,
+  DatabaseBackup,
   FileUp,
   History,
   Inbox,
@@ -64,6 +65,7 @@ export function MorePage() {
             { to: '/import', label: 'Import statement', icon: FileUp },
             { to: '/import/sms', label: 'Paste bank SMS', icon: MessageSquareText },
             { to: '/more/imports', label: 'Import history', icon: History },
+            { to: '/more/backup', label: 'Backup & restore', icon: DatabaseBackup },
           ].map(({ to, label, icon: Icon, badge }) => (
             <li key={to}>
               <Link to={to} className="flex min-h-14 items-center gap-3 px-4 text-sm font-medium">

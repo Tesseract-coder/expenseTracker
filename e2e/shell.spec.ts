@@ -64,6 +64,7 @@ test.describe('PWA shell', () => {
       '/import',
       '/import/sms',
       '/more/imports',
+      '/more/backup',
       '/inbox',
       '/more/rules',
       '/more/payees',

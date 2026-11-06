@@ -1,0 +1,114 @@
+{
+  "profile": "hdfc_savings_v1",
+  "mapping": {
+    "headerRow": 3,
+    "dateCol": 0,
+    "valueDateCol": 3,
+    "narrationCols": [1],
+    "refCol": 2,
+    "balanceCol": 6,
+    "amount": {
+      "kind": "debit_credit",
+      "debitCol": 4,
+      "creditCol": 5
+    },
+    "dateOrder": "dmy"
+  },
+  "rows": [
+    {
+      "txnDate": "2026-10-01",
+      "valueDate": "2026-10-01",
+      "narration": "NEFT CR-HDFC0000123-ACME TECH PVT LTD-SALARY OCT 2026",
+      "refNo": "N274262626000001",
+      "amountPaise": 9500000,
+      "direction": "in",
+      "balancePaise": 14500000,
+      "sourceRow": 5
+    },
+    {
+      "txnDate": "2026-10-02",
+      "valueDate": "2026-10-02",
+      "narration": "UPI-SWIGGY LIMITED-SWIGGY.INSTAMART@YBL-YESB0YBLUPI-427512345678-PAYMENT FROM PHONE",
+      "refNo": "0000427512345678",
+      "amountPaise": 45050,
+      "direction": "out",
+      "balancePaise": 14454950,
+      "sourceRow": 6
+    },
+    {
+      "txnDate": "2026-10-02",
+      "valueDate": "2026-10-02",
+      "narration": "UPI-CHAI POINT-CHAIWALA@PAYTM-PYTM0123456-427512345600-UPI",
+      "refNo": "0000427512345600",
+      "amountPaise": 2000,
+      "direction": "out",
+      "balancePaise": 14452950,
+      "sourceRow": 7
+    },
+    {
+      "txnDate": "2026-10-02",
+      "valueDate": "2026-10-02",
+      "narration": "UPI-CHAI POINT-CHAIWALA@PAYTM-PYTM0123456-427512345600-UPI",
+      "refNo": "0000427512345600",
+      "amountPaise": 2000,
+      "direction": "out",
+      "balancePaise": 14450950,
+      "sourceRow": 8
+    },
+    {
+      "txnDate": "2026-10-05",
+      "valueDate": "2026-10-05",
+      "narration": "CC 000485498XXXXXX4321 AUTOPAY SI-TAD",
+      "refNo": null,
+      "amountPaise": 1850000,
+      "direction": "out",
+      "balancePaise": 12600950,
+      "sourceRow": 9
+    },
+    {
+      "txnDate": "2026-10-07",
+      "valueDate": "2026-10-07",
+      "narration": "POS 416021XXXXXX1234 DMART AVENUE SUPE",
+      "refNo": "0000627512345611",
+      "amountPaise": 156000,
+      "direction": "out",
+      "balancePaise": 12444950,
+      "sourceRow": 11
+    },
+    {
+      "txnDate": "2026-10-15",
+      "valueDate": "2026-10-15",
+      "narration": "IMPS-427598761234-SELF-KKBK0000123-XXXXXX5678-TO KOTAK",
+      "refNo": "0000427598761234",
+      "amountPaise": 2000000,
+      "direction": "out",
+      "balancePaise": 10444950,
+      "sourceRow": 12
+    },
+    {
+      "txnDate": "2026-10-20",
+      "valueDate": "2026-10-20",
+      "narration": "NWD-416021XXXXXX1234-S1AW0123-PUNE",
+      "refNo": "0000629312345678",
+      "amountPaise": 500000,
+      "direction": "out",
+      "balancePaise": 9944950,
+      "sourceRow": 13
+    },
+    {
+      "txnDate": "2026-10-28",
+      "valueDate": "2026-10-28",
+      "narration": "UPI-AMAZON PAY INDIA-AMAZONPAY@APL-UTIB0000100-430112345678-REFUND",
+      "refNo": "0000430112345678",
+      "amountPaise": 129900,
+      "direction": "in",
+      "balancePaise": 10074850,
+      "sourceRow": 14
+    }
+  ],
+  "errors": [],
+  "skipped": 0,
+  "from": "2026-10-01",
+  "to": "2026-10-28",
+  "closingBalancePaise": 10074850
+}

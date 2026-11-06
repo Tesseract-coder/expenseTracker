@@ -119,6 +119,14 @@ export async function listImports(db: Db, userId: string): Promise<ImportDto[]> 
 
 // ---------------------------------------------------------------------------- upload
 
+const CONTENT_TYPES: Record<string, string> = {
+  csv: 'text/csv',
+  txt: 'text/plain',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pdf: 'application/pdf',
+};
+
 export async function uploadStatement(
   db: Db,
   env: Env,
@@ -129,13 +137,15 @@ export async function uploadStatement(
   await getAccount(db, userId, accountId);
   const ext = file.name.toLowerCase().split('.').pop() ?? '';
   if (!(IMPORT_FILE_EXTENSIONS as readonly string[]).includes(ext)) {
-    throw badRequest('unsupported_file', 'Upload a CSV, TXT, XLS or XLSX statement');
+    throw badRequest('unsupported_file', 'Upload a CSV, TXT, XLS, XLSX or PDF statement');
   }
   if (file.size === 0) throw badRequest('empty_file', 'The file is empty');
   if (file.size > MAX_IMPORT_FILE_BYTES)
     throw new ApiException(413, 'file_too_large', 'Statements must be under 5 MB');
 
   const bytes = await file.arrayBuffer();
+  if (ext === 'pdf' && new TextDecoder().decode(bytes.slice(0, 5)) !== '%PDF-')
+    throw badRequest('unsupported_file', 'This file is not a PDF');
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   const sha = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 
@@ -155,7 +165,8 @@ export async function uploadStatement(
   const id = newId();
   const r2Key = `${r2Base(userId, id)}/${sha}.${ext}`;
   await env.STATEMENTS.put(r2Key, bytes, {
-    httpMetadata: { contentType: file.type || 'application/octet-stream' },
+    // Content type comes from the extension, never from the client (it is served back later).
+    httpMetadata: { contentType: CONTENT_TYPES[ext] ?? 'application/octet-stream' },
     sha256: sha,
   });
   await db.insert(imports).values({

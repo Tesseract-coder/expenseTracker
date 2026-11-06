@@ -4,6 +4,7 @@
  *
  *   pnpm seed:demo                            # 12 months into the local D1
  *   pnpm seed:demo --months 24 --scale 5      # ~5k transactions for perf work
+ *   pnpm seed:demo --months 24 --scale 12 --persist-to ../../.perf-state   # separate DB
  *   node scripts/seed-demo.ts > demo.sql      # just print the SQL
  *
  * Open the app once first (http://localhost:5173) so the dev user and its categories exist.
@@ -272,9 +273,20 @@ if (args.includes('--apply')) {
   const apiDir = fileURLToPath(new URL('../apps/api/', import.meta.url));
   mkdirSync(`${apiDir}.wrangler`, { recursive: true });
   writeFileSync(`${apiDir}.wrangler/demo-seed.sql`, sql);
+  const persist = args.indexOf('--persist-to');
   execFileSync(
     'pnpm',
-    ['exec', 'wrangler', 'd1', 'execute', 'DB', '--local', '--file', '.wrangler/demo-seed.sql'],
+    [
+      'exec',
+      'wrangler',
+      'd1',
+      'execute',
+      'DB',
+      '--local',
+      '--file',
+      '.wrangler/demo-seed.sql',
+      ...(persist >= 0 ? ['--persist-to', args[persist + 1] as string] : []),
+    ],
     {
       cwd: apiDir,
       stdio: 'inherit',

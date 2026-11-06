@@ -12,7 +12,7 @@ import { columnMappingSchema } from './mapping';
 /** Upper bound per import; keeps a preview within Worker CPU/memory budgets on the Free plan. */
 export const MAX_IMPORT_ROWS = 3000;
 export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
-export const IMPORT_FILE_EXTENSIONS = ['csv', 'txt', 'xls', 'xlsx'] as const;
+export const IMPORT_FILE_EXTENSIONS = ['csv', 'txt', 'xls', 'xlsx', 'pdf'] as const;
 
 export const parsedRowSchema = z.object({
   txnDate: isoDateSchema,

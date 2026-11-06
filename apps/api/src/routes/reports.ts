@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   budgetUpsertSchema,
   healthScoreQuerySchema,
+  MAX_EXPORT_ROWS,
   monthKeySchema,
   recurringUpdateSchema,
   reportQuerySchema,
@@ -85,10 +86,14 @@ export const settingsRoutes = new Hono<AppEnv>()
 
 export const exportRoutes = new Hono<AppEnv>().get(
   '/transactions',
-  rateLimit('export'),
+  // Only the first page of an export counts against the limit.
+  rateLimit('export', { skip: async (c) => Number(c.req.query('offset') ?? 0) > 0 }),
   zv(
     'query',
-    transactionListQuerySchema.extend({ withPayees: z.enum(['true', 'false']).optional() }),
+    transactionListQuerySchema.extend({
+      withPayees: z.enum(['true', 'false']).optional(),
+      offset: z.coerce.number().int().min(0).max(MAX_EXPORT_ROWS).optional(),
+    }),
   ),
   async (c) =>
     c.json(await exportTransactions(getDb(c.env.DB), c.env.DB, c.get('user').id, query(c))),

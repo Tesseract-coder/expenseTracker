@@ -17,11 +17,17 @@ export async function listParserProfiles(db: Db, userId: string): Promise<Parser
     .from(parserProfiles)
     .where(eq(parserProfiles.userId, userId))
     .orderBy(desc(parserProfiles.updatedAt));
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    mapping: columnMappingSchema.parse(JSON.parse(r.mapping)),
-  }));
+  // A stored mapping that no longer validates is skipped, never a 500 for the import screen.
+  return rows.flatMap((r) => {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(r.mapping);
+    } catch {
+      return [];
+    }
+    const mapping = columnMappingSchema.safeParse(raw);
+    return mapping.success ? [{ id: r.id, name: r.name, mapping: mapping.data }] : [];
+  });
 }
 
 export async function createParserProfile(

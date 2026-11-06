@@ -1,8 +1,8 @@
 import { CheckSquare, Download, List, Search, SlidersHorizontal, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { periodRange, toIstDate, previousPeriodRange } from '@kharcha/shared';
+import { periodRange, previousPeriodRange, toIstDate, type TransactionDto } from '@kharcha/shared';
 import {
   useAccounts,
   useCategoryMap,
@@ -65,13 +65,28 @@ export function TransactionsPage() {
       setExporting(false);
     }
   };
-  const toggle = (id: string) =>
-    setSelection((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const toggle = useCallback(
+    (id: string) =>
+      setSelection((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      }),
+    [],
+  );
+  // Stable row callbacks (rows are memoized), reading the latest state through a ref.
+  const latest = useRef({ selection, openEdit, openLabel });
+  useLayoutEffect(() => {
+    latest.current = { selection, openEdit, openLabel };
+  });
+  const onOpenRow = useCallback(
+    (txn: TransactionDto) =>
+      latest.current.selection ? toggle(txn.id) : latest.current.openEdit(txn),
+    [toggle],
+  );
+  const onSwipeRow = useCallback((txn: TransactionDto) => latest.current.openLabel({ txn }), []);
+  const onLongPressRow = useCallback((txn: TransactionDto) => setSelection(new Set([txn.id])), []);
 
   useEffect(() => setFilter('q', debounced.trim() || undefined), [debounced, setFilter]);
 
@@ -219,7 +234,13 @@ export function TransactionsPage() {
       ) : (
         <div className="flex flex-col gap-4">
           {days.map((d) => (
-            <section key={d.date} aria-label={formatDayHeader(d.date)}>
+            // content-visibility lets the browser skip layout/paint of days scrolled far away,
+            // so a long infinite list (10k+ rows) stays smooth on phones.
+            <section
+              key={d.date}
+              aria-label={formatDayHeader(d.date)}
+              className="[contain-intrinsic-size:auto_160px] [content-visibility:auto]"
+            >
               <header className="flex items-baseline justify-between px-2 pb-1 text-xs font-semibold text-muted-foreground">
                 <h2>{formatDayHeader(d.date)}</h2>
                 <span className="flex gap-2">
@@ -236,9 +257,9 @@ export function TransactionsPage() {
                     accountsById={accountsById}
                     selectionMode={selection !== null}
                     selected={selection?.has(t.id) ?? false}
-                    onOpen={(txn) => (selection ? toggle(txn.id) : openEdit(txn))}
-                    onSwipe={(txn) => openLabel({ txn })}
-                    onLongPress={(txn) => setSelection(new Set([txn.id]))}
+                    onOpen={onOpenRow}
+                    onSwipe={onSwipeRow}
+                    onLongPress={onLongPressRow}
                   />
                 ))}
               </ul>

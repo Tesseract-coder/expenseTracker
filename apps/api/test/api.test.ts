@@ -80,3 +80,37 @@ describe('routing', () => {
     expect(await res.json()).toMatchObject({ error: { code: 'not_found' } });
   });
 });
+
+describe('cross-site request protection', () => {
+  const post = (headers: Record<string, string>) =>
+    app.request(
+      'http://localhost/api/tags',
+      { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: '{}' },
+      devEnv(),
+    );
+
+  it.each([
+    ['another site (fetch metadata)', { 'sec-fetch-site': 'cross-site' }],
+    ['a sibling subdomain', { 'sec-fetch-site': 'same-site' }],
+    ['a foreign Origin', { origin: 'https://evil.example' }],
+    ['an opaque Origin', { origin: 'null' }],
+  ])('refuses writes from %s', async (_n, headers) => {
+    const res = await post(headers);
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe('cross_site');
+  });
+
+  it('allows same-origin writes, direct clients and cross-site reads', async () => {
+    // /api/tags has no POST, so a request that passes the guard gets 404.
+    expect(
+      (await post({ 'sec-fetch-site': 'same-origin', origin: 'http://localhost' })).status,
+    ).toBe(404);
+    expect((await post({})).status).toBe(404);
+    const read = await app.request(
+      'http://localhost/api/health',
+      { headers: { 'sec-fetch-site': 'cross-site' } },
+      devEnv(),
+    );
+    expect(read.status).toBe(200);
+  });
+});

@@ -63,6 +63,33 @@ test.describe('statement import', () => {
     await expect(page.getByRole('button', { name: 'Nothing new to import' })).toBeDisabled();
   });
 
+  test('unlocks a password-protected PDF on the device and imports it', async ({ page }, info) => {
+    const name = `HDFC PDF ${uid(info)}`;
+    await createAccount(page, { name, bank: 'hdfc', openingBalancePaise: 5000000 });
+    // The password must never leave the device.
+    const sent: string[] = [];
+    page.on('request', (r) => sent.push(`${r.url()} ${r.postData() ?? ''}`));
+
+    await chooseFile(page, name, fixture('hdfc/savings-protected.pdf'));
+    const password = page.getByLabel('PDF password');
+    await expect(password).toBeVisible();
+    await password.fill('wrong-one');
+    await page.getByRole('button', { name: 'Unlock' }).click();
+    await expect(page.getByText('That password is not right')).toBeVisible();
+
+    await page.getByLabel('PDF password').fill('SAMPLE1234');
+    await page.getByRole('button', { name: 'Unlock' }).click();
+    await expect(page.getByText(`HDFC Bank — Savings/Current → ${name}`)).toBeVisible();
+    await expect(page.getByLabel('Summary').getByText('New').locator('..')).toContainText('9');
+    await expect(
+      page.getByRole('status').filter({ hasText: 'matches the statement' }),
+    ).toContainText('₹1,00,748.50');
+    await page.getByRole('button', { name: 'Import 9 transactions' }).click();
+    await expect(page.getByRole('heading', { name: 'Imported 9 transactions' })).toBeVisible();
+
+    expect(sent.filter((s) => s.includes('SAMPLE1234') || s.includes('wrong-one'))).toEqual([]);
+  });
+
   test('maps an unknown format once, then reuses the saved columns', async ({ page }, info) => {
     const name = `Coop ${uid(info)}`;
     await createAccount(page, { name });

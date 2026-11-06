@@ -26,6 +26,8 @@ export default defineConfig({
         // Offline app shell only. API data is cached by TanStack Query persistence, never by the SW,
         // so authenticated JSON never sits in the Cache Storage.
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // pdf.js (~1.7 MB with its worker) loads only when a PDF statement is imported, online.
+        globIgnores: ['**/readPdf-*.js', '**/pdf.worker*'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/cdn-cgi\//],
       },

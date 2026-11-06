@@ -105,7 +105,7 @@ pnpm db:migrate:local
 pnpm dev            # Vite on :5173 (proxies /api) + wrangler dev on :8787
 ```
 
-Demo data: open the app once (so the dev user exists), then `pnpm seed:demo` (12 months, about 570 transactions) or `pnpm seed:demo --months 24 --scale 5` for performance work. It's idempotent (fixed ids). Demo accounts have no last-4 digits, so they never trigger transfer hints in imports.
+Demo data: open the app once (so the dev user exists), then `pnpm seed:demo` (12 months, about 570 transactions) or `pnpm seed:demo --months 24 --scale 5` for performance work. For 10k+ rows without touching the E2E database, use a separate state dir: `pnpm --filter @kharcha/api exec wrangler d1 migrations apply DB --local --persist-to /tmp/kharcha-perf`, start `wrangler dev --port 8788 --persist-to /tmp/kharcha-perf`, open it once, then `node scripts/seed-demo.ts --months 24 --scale 12 --apply --persist-to /tmp/kharcha-perf` (about 11k transactions). It's idempotent (fixed ids). Demo accounts have no last-4 digits, so they never trigger transfer hints in imports.
 
 Local auth uses the dev bypass (`AUTH_MODE=dev`, localhost only) as `dev@kharcha.local`.
 
@@ -113,3 +113,7 @@ Local auth uses the dev bypass (`AUTH_MODE=dev`, localhost only) as `dev@kharcha
 
 - **E-mail alerts**: needs a zone on Cloudflare with Email Routing. Route an address (e.g. `txn@yourdomain`) to the `kharcha` Worker. Then run `wrangler secret put ALERT_SENDERS --env production` (comma-separated: your own address(es) that forward the alerts). Transactions go to the first `ALLOWED_EMAILS` user as "Needs review". Alerts whose last digits match no account are dropped (counted in logs as `unmatched`), so set last-4 on your accounts. Envelope senders can in principle be spoofed; at worst a forged mail adds review items.
 - **Workers AI**: add `[env.production.ai] binding = "AI"` and set `AI_ENABLED = "true"`. Optional `AI_MODEL` (default `@cf/meta/llama-3.1-8b-instruct`). The narration, payee, UPI handle and rounded amount of the selected transactions are sent to Workers AI (Cloudflare, same account). The free tier is 10k neurons/day; it is rate-limited per user.
+
+## 12. Backups (Phase 6)
+
+More → Backup & restore downloads `kharcha-backup-YYYY-MM-DD.json` (every table you own; see DATA_MODEL §7). Restore replaces all data. Back up first, and if a restore is interrupted, restore the same file again. Original statement files stay in R2 and aren't part of the file. For a server-side copy as well, `wrangler d1 export kharcha-prod --remote --output kharcha.sql` dumps the whole database (all users, schema included).

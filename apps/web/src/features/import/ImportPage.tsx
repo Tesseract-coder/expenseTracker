@@ -8,6 +8,7 @@ import {
   type Grid,
   type ImportPreviewResponse,
   MAX_IMPORT_ROWS,
+  PdfReadError,
   detectProfile,
   formatINR,
   guessGenericMapping,
@@ -29,11 +30,13 @@ import { Field, Select } from '@/components/ui/input';
 import { errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { MappingWizard } from './MappingWizard';
+import { PdfPasswordStep } from './PdfPasswordStep';
 import { CheckRow, KIND_LABEL, PreviewLine, Section, Stat } from './PreviewParts';
 import { readStatementFile } from './readStatement';
 
 type Step =
   | { kind: 'select' }
+  | { kind: 'password'; file: File; error?: string }
   | {
       kind: 'wizard';
       file: File;
@@ -140,7 +143,7 @@ export function ImportPage() {
     }
   }
 
-  async function onFile(file: File) {
+  async function onFile(file: File, password?: string) {
     if (!account) return;
     localStorage.setItem(LAST_IMPORT_ACCOUNT, account.id);
     setBusy('Reading statement…');
@@ -148,7 +151,7 @@ export function ImportPage() {
       // Use fresh account + saved-profile data: a mapping saved moments ago (or a page that is still
       // loading) must not fall back to detection/the wizard.
       const [grid, accountsNow, profilesNow] = await Promise.all([
-        readStatementFile(file),
+        readStatementFile(file, password),
         accounts.refetch(),
         profiles.refetch(),
       ]);
@@ -180,7 +183,16 @@ export function ImportPage() {
         note: "We didn't recognise this format. Map the columns once and we'll remember it.",
       });
     } catch (err) {
-      toast.error(errorMessage(err));
+      if (
+        err instanceof PdfReadError &&
+        (err.reason === 'password_needed' || err.reason === 'password_incorrect')
+      ) {
+        setStep({
+          kind: 'password',
+          file,
+          ...(err.reason === 'password_incorrect' ? { error: err.message } : {}),
+        });
+      } else toast.error(errorMessage(err));
     } finally {
       setBusy(null);
     }
@@ -210,6 +222,18 @@ export function ImportPage() {
         />
         {busy}
       </div>
+    );
+  }
+
+  if (step.kind === 'password') {
+    return (
+      <PdfPasswordStep
+        key={step.error ?? 'first'}
+        fileName={step.file.name}
+        error={step.error}
+        onCancel={() => setStep({ kind: 'select' })}
+        onSubmit={(pw) => void onFile(step.file, pw)}
+      />
     );
   }
 
@@ -303,7 +327,7 @@ export function ImportPage() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        Download a statement (CSV, XLS or XLSX) from net banking and import it. Duplicates are
+        Download a statement (CSV, XLS, XLSX or PDF) from net banking and import it. Duplicates are
         skipped automatically.
       </p>
       <Field label="Account" htmlFor="import-account">
@@ -326,13 +350,14 @@ export function ImportPage() {
         <Upload aria-hidden className="size-8 text-primary" />
         <span className="text-sm font-medium">Choose statement file</span>
         <span className="text-xs text-muted-foreground">
-          HDFC, ICICI, SBI, Axis, Kotak recognised automatically · up to 5 MB
+          HDFC, ICICI, SBI, Axis, Kotak recognised automatically · PDFs can be password-protected ·
+          up to 5 MB
         </span>
       </label>
       <input
         id="statement-file"
         type="file"
-        accept=".csv,.txt,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept=".csv,.txt,.xls,.xlsx,.pdf,text/csv,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         className="sr-only"
         onChange={(e) => {
           const f = e.target.files?.[0];

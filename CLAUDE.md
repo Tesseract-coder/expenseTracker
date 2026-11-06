@@ -1,6 +1,6 @@
 # CLAUDE.md — Kharcha
 
-Single-user personal finance PWA on Cloudflare (Workers + Static Assets, D1, R2). Read `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md` and `docs/DEPLOYMENT.md` before non-trivial changes, and keep them updated.
+Single-user personal finance PWA on Cloudflare (Workers + Static Assets, D1, R2). Read `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`, `docs/DEPLOYMENT.md` and `docs/SECURITY.md` before non-trivial changes, and keep them updated.
 
 ## Working agreement
 
@@ -53,6 +53,10 @@ Single-user personal finance PWA on Cloudflare (Workers + Static Assets, D1, R2)
 - **Exports**: build sheets with `reportSheets` / `transactionRows` / `toCsv` (shared, pure), write XLSX with `@kharcha/shared/spreadsheet#writeXlsx` (browser only). Never bypass `safeCell` (formula injection).
 - **Bank alerts** (`packages/shared/src/alerts`): SMS are parsed in the browser, e-mails in the Worker, both with `parseAlerts`. Alerts feed the statement pipeline (`createAlertImport` → `previewImport` → `commitImport`); never add a separate insert path. New alert format: case in `parse.test.ts` (real wording, redacted) and, if it changes the paste fixture, `UPDATE_GOLDEN=1` for `fixtures/alerts`. Rebuild narrations in bank-statement shape so the normalizer keeps working.
 - **AI** (`categorize/ai.ts` + `services/ai.ts`): gated by `aiEnabled(env)`; the model only picks category numbers from your list and every answer goes through `parseAiResponse`. Never send more than narration, payee, VPA, rounded amount, direction and channel, and log only counts.
+- **PDF statements** (`import/pdfLayout.ts`, `import/pdfRead.ts`): pdf.js is passed in (web: `features/import/readPdf.ts`, lazy; tests: `pdfjs-dist/legacy`). Never store, log or send the password. New PDF layouts get a generated fixture in `scripts/generate-pdf-fixtures.ts` (byte-stable; run it from `packages/shared`) plus a golden case (`*.pdf.expected.json`).
+- **Backup/restore** (`services/backup.ts`, shared `backup/`): driven by the Drizzle schema. A **new table** must be added to `BACKUP_TABLES` in reference order (and `BACKUP_SELF_LINKS` if it references itself); a new JSON column gets a validator in `JSON_COLUMNS`. Wipe order lives in `startRestore`.
+- **CSRF**: writes must come from the app's origin (`middleware/sameOrigin.ts`); keep JSON bodies (`zv('json')`) for new write endpoints.
+- **Performance budget**: Home ships only what it renders. New screens are lazy routes (`page()` in `router.tsx`), `Sheet` loads vaul on first open, and below-the-fold charts use `WhenVisible`. Skeletons match the loaded layout (CLS). Endpoints that can return thousands of rows must page (Free plan: ~10 ms CPU per request; JSON for 2,500 rows ≈ 4 ms). For perf work, seed a separate DB: `pnpm seed:demo --months 24 --scale 12 --persist-to <dir>` and run `wrangler dev --persist-to <dir>`.
 - **Demo data**: `pnpm seed:demo` (see DEPLOYMENT §10).
 - **Rate limits**: `rateLimit(scope, { skip })`. Chunked endpoints pass `skip: isContinuation` so only the first request of a run counts.
 - **Category identity**: seeded categories are referenced by `slug` (stable), never by ID or name.

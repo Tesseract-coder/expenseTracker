@@ -1,0 +1,64 @@
+{
+  "profile": "icici_savings_v1",
+  "mapping": {
+    "headerRow": 3,
+    "dateCol": 1,
+    "valueDateCol": null,
+    "narrationCols": [2],
+    "refCol": null,
+    "balanceCol": 5,
+    "amount": {
+      "kind": "debit_credit",
+      "debitCol": 3,
+      "creditCol": 4
+    },
+    "dateOrder": "dmy"
+  },
+  "rows": [
+    {
+      "txnDate": "2026-10-01",
+      "valueDate": null,
+      "narration": "NEFT-CITIN26274123456-ACME TECH PVT LTD-SALARY",
+      "refNo": null,
+      "amountPaise": 8200000,
+      "direction": "in",
+      "balancePaise": 13200000,
+      "sourceRow": 5
+    },
+    {
+      "txnDate": "2026-10-03",
+      "valueDate": null,
+      "narration": "UPI/427612345678/ZOMATO LTD/zomato@hdfcbank/Paid via app",
+      "refNo": null,
+      "amountPaise": 61200,
+      "direction": "out",
+      "balancePaise": 13138800,
+      "sourceRow": 6
+    },
+    {
+      "txnDate": "2026-10-09",
+      "valueDate": null,
+      "narration": "ATM/CASH WDL/S1CN1234/PUNE",
+      "refNo": null,
+      "amountPaise": 300000,
+      "direction": "out",
+      "balancePaise": 12838800,
+      "sourceRow": 7
+    },
+    {
+      "txnDate": "2026-10-18",
+      "valueDate": null,
+      "narration": "BIL/ONL/000123456/BESCOM/ELECTRICITY BILL",
+      "refNo": null,
+      "amountPaise": 184500,
+      "direction": "out",
+      "balancePaise": 12654300,
+      "sourceRow": 8
+    }
+  ],
+  "errors": [],
+  "skipped": 1,
+  "from": "2026-10-01",
+  "to": "2026-10-18",
+  "closingBalancePaise": 12654300
+}

@@ -278,7 +278,9 @@ export const transactions = sqliteTable(
     uniqueIndex('transactions_user_fingerprint_uq').on(t.userId, t.fingerprint),
     index('transactions_user_account_date_idx').on(t.userId, t.accountId, t.txnDate),
     index('transactions_user_category_date_idx').on(t.userId, t.categoryId, t.txnDate),
-    index('transactions_user_date_idx').on(t.userId, t.txnDate),
+    // Matches the list's keyset order (txn_date, created_at, id) so a page stops after `limit`
+    // rows instead of sorting every row (Phase 6 perf pass). Also serves date-range reports.
+    index('transactions_user_date_created_idx').on(t.userId, t.txnDate, t.createdAt, t.id),
     index('transactions_user_counterparty_date_idx').on(t.userId, t.counterpartyId, t.txnDate),
     index('transactions_needs_review_idx')
       .on(t.userId, t.txnDate)

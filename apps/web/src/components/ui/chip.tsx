@@ -10,7 +10,8 @@ export function Chip({
   return (
     <button
       type="button"
-      aria-pressed={selected}
+      // Tabs announce selection with aria-selected; aria-pressed isn't allowed on them.
+      aria-pressed={props.role === 'tab' ? undefined : selected}
       className={cn(
         'inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium whitespace-nowrap transition-colors',
         selected

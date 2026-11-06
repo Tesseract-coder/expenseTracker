@@ -9,3 +9,4 @@ export * from './alerts';
 export * from './categorize';
 export * from './reports';
 export * from './export';
+export * from './backup';

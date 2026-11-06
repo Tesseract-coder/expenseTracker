@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import {
+  EXPORT_PAGE_ROWS,
   type ExportResponse,
   MAX_EXPORT_ROWS,
   type TransactionListQuery,
@@ -22,14 +23,17 @@ const parent = alias(categories, 'parent');
 /**
  * Rows for XLSX/CSV export with the same filters as the transaction list. Split transactions
  * export one row per part, so category sheets add up. The spreadsheet itself is built in the
- * browser (SheetJS is never loaded in the Worker).
+ * browser (SheetJS is never loaded in the Worker). Paged by `offset` (EXPORT_PAGE_ROWS per
+ * request) so a 20,000-row export never runs as one CPU-heavy request on the Free plan.
  */
 export async function exportTransactions(
   db: Db,
   d1: D1Database,
   userId: string,
-  rawQuery: TransactionListQuery & { withPayees?: string },
+  rawQuery: TransactionListQuery & { withPayees?: string; offset?: number },
 ): Promise<ExportResponse> {
+  const offset = Math.min(Number(rawQuery.offset ?? 0) || 0, MAX_EXPORT_ROWS);
+  const pageSize = Math.min(EXPORT_PAGE_ROWS, MAX_EXPORT_ROWS - offset);
   const q = transactionListQuerySchema.parse(rawQuery);
   const conds = await transactionFilterConds(db, userId, q);
   const t = transactions;
@@ -58,11 +62,15 @@ export async function exportTransactions(
     )
     .leftJoin(parent, eq(parent.id, categories.parentId))
     .where(and(...conds))
-    .orderBy(desc(t.txnDate), desc(t.createdAt))
-    .limit(MAX_EXPORT_ROWS + 1);
+    .orderBy(desc(t.txnDate), desc(t.createdAt), desc(t.id), transactionSplits.id)
+    .limit(pageSize + 1)
+    .offset(offset);
+  const more = rows.length > pageSize;
+  const last = offset + pageSize >= MAX_EXPORT_ROWS;
 
   let byCounterparty: ExportResponse['byCounterparty'] = [];
-  if (rawQuery.withPayees === 'true' && q.from && q.to) {
+  // Payee totals ride on the first page only.
+  if (rawQuery.withPayees === 'true' && offset === 0 && q.from && q.to) {
     const w = ledgerWhere(userId, { from: q.from, to: q.to, accountIds: q.accountIds });
     const { results } = await d1
       .prepare(
@@ -79,9 +87,10 @@ export async function exportTransactions(
 
   return {
     rows: rows
-      .slice(0, MAX_EXPORT_ROWS)
+      .slice(0, pageSize)
       .map((r) => ({ ...r, tags: r.tags ?? '', group: r.group ?? null })),
-    truncated: rows.length > MAX_EXPORT_ROWS,
+    truncated: more && last,
+    next: more && !last ? offset + pageSize : null,
     byCounterparty,
   };
 }

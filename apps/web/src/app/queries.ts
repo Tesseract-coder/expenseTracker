@@ -60,6 +60,7 @@ import {
   budgetListResponseSchema,
   type BudgetUpsert,
   exportResponseSchema,
+  type ExportResponse,
   healthScoreResponseSchema,
   recurringListResponseSchema,
   settingsDtoSchema,
@@ -666,6 +667,18 @@ export function useDismissRecurring() {
   });
 }
 
-/** One-off fetch for exports (not cached). */
-export const fetchExport = (params: Params) =>
-  apiGet(`/export/transactions${toQueryString(params)}`, exportResponseSchema);
+/** One-off fetch for exports (not cached), page by page; payee totals come with page one. */
+export async function fetchExport(params: Params): Promise<ExportResponse> {
+  const first = await apiGet(`/export/transactions${toQueryString(params)}`, exportResponseSchema);
+  const rows = [...first.rows];
+  let { next, truncated } = first;
+  while (next !== null) {
+    const page = await apiGet(
+      `/export/transactions${toQueryString({ ...params, withPayees: undefined, offset: String(next) })}`,
+      exportResponseSchema,
+    );
+    rows.push(...page.rows);
+    ({ next, truncated } = page);
+  }
+  return { ...first, rows, truncated, next: null };
+}

@@ -60,11 +60,25 @@ describe('upload', () => {
       devEnv(),
     );
     expect(file.headers.get('content-disposition')).toBe('attachment; filename="oct.csv"');
+    // The stored content type comes from the extension, not from what the client claimed.
+    expect(file.headers.get('content-type')).toBe('text/csv');
     expect(await file.text()).toBe('hello,world\n');
   });
 
+  it('accepts PDF statements (still encrypted; the password never reaches the server)', async () => {
+    const res = await upload(hdfc, 'statement.pdf', '%PDF-1.4 encrypted bytes');
+    expect(res.status).toBe(201);
+    const file = await createApp().request(
+      `http://localhost/api/imports/${res.body.importId}/file`,
+      {},
+      devEnv(),
+    );
+    expect(file.headers.get('content-type')).toBe('application/pdf');
+  });
+
   it.each([
-    ['unsupported type', 'statement.pdf', 'x', 'unsupported_file'],
+    ['unsupported type', 'statement.docx', 'x', 'unsupported_file'],
+    ['fake PDF', 'statement.pdf', '<html>', 'unsupported_file'],
     ['empty file', 'statement.csv', '', 'empty_file'],
   ])('rejects %s', async (_n, name, content, code) => {
     const res = await upload(hdfc, name, content);

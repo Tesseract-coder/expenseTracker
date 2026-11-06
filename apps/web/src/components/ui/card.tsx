@@ -17,8 +17,9 @@ export function CardHeader({ className, ...props }: ComponentProps<'div'>) {
   return <div className={cn('flex flex-col gap-1 p-4 pb-2', className)} {...props} />;
 }
 
-export function CardTitle({ className, ...props }: ComponentProps<'h3'>) {
-  return <h3 className={cn('text-sm font-medium text-muted-foreground', className)} {...props} />;
+export function CardTitle({ className, ...props }: ComponentProps<'h2'>) {
+  // h2: card titles sit directly under the page's h1 (heading order).
+  return <h2 className={cn('text-sm font-medium text-muted-foreground', className)} {...props} />;
 }
 
 export function CardContent({ className, ...props }: ComponentProps<'div'>) {

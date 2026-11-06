@@ -68,7 +68,7 @@ export function HomePage() {
           </Link>
         </div>
         {accounts.isPending ? (
-          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-[184px] w-full" />
         ) : active.length === 0 ? (
           <EmptyState icon={Wallet} title="No accounts" />
         ) : (
@@ -108,7 +108,7 @@ export function HomePage() {
           </Link>
         </div>
         {recent.isPending ? (
-          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-[332px] w-full" />
         ) : recentRows.length === 0 ? (
           <EmptyState icon={Inbox} title="No transactions yet">
             Tap + to add your first expense or income.
