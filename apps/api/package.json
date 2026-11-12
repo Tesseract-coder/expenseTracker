@@ -19,7 +19,7 @@
     "@hono/zod-validator": "^0.7.0",
     "@kharcha/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
-    "hono": "^4.13.16",
+    "hono": "^4.13.17",
     "jose": "^6.2.14",
     "postal-mime": "^4.2.0",
     "ulid": "^3.0.2",
