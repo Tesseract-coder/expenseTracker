@@ -20,7 +20,7 @@
     "@kharcha/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.16",
-    "jose": "^6.2.14",
+    "jose": "^6.2.16",
     "postal-mime": "^4.2.0",
     "ulid": "^3.0.2",
     "zod": "^4.6.7"

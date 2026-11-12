@@ -218,8 +218,8 @@ importers:
         specifier: ^4.13.16
         version: 4.13.16
       jose:
-        specifier: ^6.2.14
-        version: 6.2.14
+        specifier: ^6.2.16
+        version: 6.2.16
       postal-mime:
         specifier: ^4.2.0
         version: 4.2.0
@@ -3624,8 +3624,8 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
-  jose@6.2.14:
-    resolution: {integrity: sha512-3JasLuki1NRLQvY4wCoC37KZk4qxoBx2k2aFqLxT84IezqW0bkJKnNtxnZj/Fu1xsQivoc/lytxaRHJoGLjJ1A==}
+  jose@6.2.16:
+    resolution: {integrity: sha512-4LSJpbuBuPdGrONCdZUy0xnxtLf8eEz+EY0SMXdHQEBU7bgUHDVblU/JAjryv3wID9/LK7/YuwFwq+AQNfMscQ==}
 
   js-tokens@10.0.0:
     resolution: {integrity: sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==}
@@ -7837,7 +7837,7 @@ snapshots:
 
   jiti@2.7.0: {}
 
-  jose@6.2.14: {}
+  jose@6.2.16: {}
 
   js-tokens@10.0.0: {}
 
